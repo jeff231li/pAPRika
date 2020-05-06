@@ -165,9 +165,9 @@ def write_to_plumed(file, colvar, block, legacy_k=False):
 
     """
     if legacy_k:
-        factor = 1.0
-    else:
         factor = 2.0
+    else:
+        factor = 1.0
 
     file.write(f"# {block} restraints\n")
     arg = ""
@@ -244,9 +244,9 @@ def write_dummy_restraints(file, dummy_atoms, kpos=50.0, legacy_k=False):
 
     """
     if legacy_k:
-        factor = 1.0
-    else:
         factor = 2.0
+    else:
+        factor = 1.0
 
     file.write("# dummy restraints\n")
     file.write(f"dm1: POSITION ATOM={dummy_atoms['DM1']['idx']} NOPBC\n")
