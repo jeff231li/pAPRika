@@ -1,9 +1,9 @@
+import logging as log
 import os as os
 import re as re
 import subprocess as sp
-import logging as log
-import numpy as np
 
+import numpy as np
 
 N_A = 6.0221409 * 10 ** 23
 ANGSTROM_CUBED_TO_LITERS = 1 * 10 ** -27
@@ -340,7 +340,7 @@ class System(object):
         # to the target_waters. This will control when we can start manually deleting
         # waters rather than adjusting the buffer_value.
         if self.manual_switch_thresh is None:
-            self.manual_switch_thresh = int(np.ceil(self.target_waters ** (1. / 3.)))
+            self.manual_switch_thresh = int(np.ceil(self.target_waters ** (1.0 / 3.0)))
             if self.manual_switch_thresh < 12:
                 self.manual_switch_thresh = 12
             log.debug(
@@ -402,7 +402,8 @@ class System(object):
 
         if cycle >= self.max_cycles and waters > self.target_waters:
             log.debug(
-                "The added waters ({}) didn't reach the manual_switch_thresh ({}) with max_cycles ({}), but we'll try manual removal anyway.".format(
+                "The added waters ({}) didn't reach the manual_switch_thresh ({}) with max_cycles"
+                "({}), but we'll try manual removal anyway.".format(
                     waters, self.target_waters, self.max_cycles
                 )
             )
@@ -595,9 +596,8 @@ class System(object):
                 additional_water = int(float(cycle) / 5.0)
                 water_surplus += additional_water
                 log.debug(
-                    "Detected trouble with manually removing water. Increasing the number of surplus waters by {}".format(
-                        additional_water
-                    )
+                    "Detected trouble with manually removing water. Increasing the"
+                    "number of surplus waters by {}".format(additional_water)
                 )
 
             self.waters_to_remove = water_residues[-1 * water_surplus :]
@@ -723,4 +723,46 @@ class System(object):
                 "before the exponent value was below {:.0f}. Try increasing manual_switch_thresh.".format(
                     self.exponent
                 )
+            )
+
+    def add_dummy_to_plumed(self, serial=True, legacy_k=False):
+        """
+        Add dummy atom restraints to the plumed.dat file based on the
+        structure created by tleap
+
+        Parameters
+        ----------
+        serial : bool
+            If true then atom index will start with 1 else 0
+        legacy_k : bool
+            Are the restraints based on legacy force constants? Old MD codes
+            like AMBER and CHARMM requires the user to half the force constant
+            beforehand. New MD codes like GROMACS and NAMD requires the user
+            to set the force constant without the 1/2 factor.
+
+        """
+        # Load structure that was created by tleap
+        import parmed as pmd
+
+        structure = pmd.load_file(
+            os.path.join(self.output_path, self.output_prefix + ".prmtop"),
+            os.path.join(self.output_path, self.output_prefix + ".rst7"),
+        )
+
+        # Extract dummy atoms
+        from paprika.utils import extract_dummy_atoms
+
+        dummy_atoms = extract_dummy_atoms(structure, serial, legacy_k)
+
+        # Write dummy atom collective variables to 'plumed.dat'
+        from paprika.restraints.plumed import write_dummy_restraints
+
+        plumed_file = os.path.join(self.output_path, "plumed.dat")
+
+        if os.path.isfile(plumed_file):
+            with open(plumed_file, "a") as file:
+                write_dummy_restraints(file, dummy_atoms)
+        else:
+            raise Exception(
+                "ERROR: 'plumed.dat' file does not exists, please check your setup script"
             )
