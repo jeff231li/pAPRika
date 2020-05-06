@@ -207,7 +207,7 @@ def write_to_plumed(file, colvar, block, legacy_k=False):
     file.write(f"... {bias}\n")
 
 
-def write_dummy_restraints(file, dummy_atoms, kpos=50.0, legacy_k=True):
+def write_dummy_restraints(file, dummy_atoms, kpos=50.0, legacy_k=False):
     """
     Append to the plumed.dat file the dummy atoms colvar and restraints
 
@@ -253,7 +253,9 @@ def write_dummy_restraints(file, dummy_atoms, kpos=50.0, legacy_k=True):
     file.write(f"dm2: POSITION ATOM={dummy_atoms['DM2']['idx']} NOPBC\n")
     file.write(f"dm3: POSITION ATOM={dummy_atoms['DM3']['idx']} NOPBC\n")
 
-    arg = "dm1.x,dm1.y,dm1.z," "dm2.x,dm2.y,dm2.z," "dm3.x,dm3.y,dm3.z,"
+    arg = "dm1.x,dm1.y,dm1.z,"
+          "dm2.x,dm2.y,dm2.z,"
+          "dm3.x,dm3.y,dm3.z,"
 
     at = (
         f"{dummy_atoms['DM1']['pos'][0]:0.3f},"
