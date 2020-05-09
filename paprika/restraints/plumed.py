@@ -75,6 +75,11 @@ def restraint_to_colvar(restraints, phase, window, legacy_k=True):
         Which phase of the simulation ('attach', 'pull', 'release').
     window : int
         Current window index
+    legacy_k : bool
+        Are the restraints based on legacy force constants? Old MD codes
+        like AMBER and CHARMM requires the user to half the force constant
+        beforehand. New MD codes like GROMACS and NAMD requires the user
+        to set the force constant without the 1/2 factor.
 
     Returns
     -------
