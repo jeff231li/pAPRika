@@ -108,24 +108,6 @@ class HostGuestRestraints(object):
         else:
             sys.exit("Protocol currently not supported")
 
-    def set_apr_fractions(self, a=None, p=None, r=None):
-        """
-        Sets the APR windows/fractions
-
-        Parameters
-        ----------
-        a : list
-            List of fractions for the 'attach' phase
-        p : list
-            List of windows for the 'pull' phase
-        r : list
-            List of fractions for the 'release' phase
-
-        """
-        self._apr_list["attach"]["fractions"] = a
-        self._apr_list["pull"]["fractions"] = p
-        self._apr_list["release"]["fractions"] = r
-
     def host_static(
         self, static_atoms=None, distance_fc=5.0, angle_fc=100.0,
     ):
@@ -565,9 +547,6 @@ class HostGuestRestraints(object):
 
         print(f"\t* There are {len(self._guest_restraints)} guest restraints")
 
-    def windows_list(self, restraints):
-        self._windows_list = create_window_list(restraints)
-
     def _write_apr_windows(self):
         """
         Extract APR windows and write to a json file
@@ -585,6 +564,26 @@ class HostGuestRestraints(object):
             dumped = json.dumps(self._apr_list, cls=NumpyEncoder)
             f.write(dumped)
 
+    def set_APR_windows(
+        self, a=None, p=None, r=None
+    ):
+        """
+        Sets the APR windows/fractions
+
+        Parameters
+        ----------
+        a : list
+            List of fractions for the 'attach' phase
+        p : list
+            List of windows for the 'pull' phase
+        r : list
+            List of fractions for the 'release' phase
+
+        """
+        self._apr_list["attach"]["fractions"] = a
+        self._apr_list["pull"]["fractions"] = p
+        self._apr_list["release"]["fractions"] = r
+
     def get_window_list(self):
         return self._window_list
 
@@ -597,7 +596,7 @@ class HostGuestRestraints(object):
             - self._guest_restraints[0].pull["target_initial"]
         )
 
-    def create_folders(self, clean=True):
+    def _create_folders(self, clean=True):
         """
         Create APR folders as defined by the fractions
 
@@ -619,18 +618,14 @@ class HostGuestRestraints(object):
             if not os.path.exists(folder):
                 os.makedirs(folder)
 
-    def fetch_dummy_atoms(self, serial=True):
+    def _fetch_dummy_atoms(self, serial=True):
         """
         Extract information about dummy atoms based on the structure given in the constructor
 
-        Parametes
+        Parameters
         ---------
         serial : bool
             Use serial (stats a 1) or index (starts at 0) atomic indices
-
-        Returns
-        -------
-        None
 
         """
 
@@ -639,6 +634,9 @@ class HostGuestRestraints(object):
         self._dummy_atoms = extract_dummy_atoms(self._structure, serial=serial)
 
     def translate_guest_molecule(self):
+        """
+        Translate the guest molecule as defined by the pull windows
+        """
         pull_window = os.path.join("windows", self.get_last_pull_window())
 
         for window in self._window_list:
@@ -714,19 +712,17 @@ class HostGuestRestraints(object):
 
         if (
             self._protocol == "a"
+            or self._protocol == "p"
             or self._protocol == "a-p"
             or self._protocol == "a-p-r"
         ):
             restraint_list += self._guest_restraints
 
-        if self._protocol == "p":
-            restraint_list += self._guest_restraints
-
         save_restraints(restraint_list=restraint_list, filepath=json_file)
 
         # Create folders and write to json files
-        self.windows_list(self._conformational_restraints)
-        self.create_folders(clean)
+        self._window_list = create_window_list(self._conformational_restraints)
+        self._create_folders(clean)
         self._write_apr_windows()
 
         # Write AMBER NMR restraint file
@@ -794,5 +790,5 @@ class HostGuestRestraints(object):
                     plumed_colvar_file(file, restraints, window)
 
                     if ref_from_structure:
-                        self.fetch_dummy_atoms(serial=True)
+                        self._fetch_dummy_atoms(serial=True)
                         write_dummy_to_plumed(file, self._dummy_atoms)
