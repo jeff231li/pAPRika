@@ -374,6 +374,9 @@ class Simulation(object):
         for key, val in dictionary.items():
             if val is not None:
                 f.write("  {:15s} {:s},\n".format(key+" =", str(val)))
+        if self.restraint_file is not None and self.restraint_file == 'plumed.dat':
+            f.write("  {:15s} {:s},\n".format("plumed = ", str(1)))
+            f.write("  {:15s} {:s},\n".format("plumedfile =", "'plumed.dat'"))
         f.write(" /\n")
 
     def _amber_write_input_file(self):
@@ -396,7 +399,7 @@ class Simulation(object):
                     for line in self.wt:
                         f.write(" "+line+"\n")
                 f.write(" &wt type = 'END', /\n")
-                if self.restraint_file is not None:
+                if self.restraint_file is not None and self.restraint_file == 'disang.rest':
                     f.write("DISANG = {}\n".format(self.restraint_file))
                     f.write("LISTOUT = POUT\n\n")
             if self.group is not None:
