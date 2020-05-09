@@ -750,7 +750,9 @@ class System(object):
     def add_dummy_to_plumed(self, serial=True):
         """
         Add dummy atom restraints to the plumed.dat file based on the
-        structure created by tleap
+        structure created by tleap. This is required because the dummy
+        atom restraints require absolute coordinates (i.e. lab frame of
+        reference).
 
         Parameters
         ----------
