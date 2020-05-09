@@ -220,9 +220,6 @@ def write_dummy_to_plumed(file, dummy_atoms, kpos=50.0, legacy_k=False):
         beforehand. New MD codes like GROMACS and NAMD requires the user
         to set the force constant without the 1/2 factor.
 
-    Returns
-    -------
-    None
 
     Example
     -------
