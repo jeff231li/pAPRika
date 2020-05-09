@@ -68,8 +68,8 @@ def restraint_to_colvar(restraints, phase, window):
         List of DAT_restraint() object.
     phase : str
         Which phase of the simulation ('attach', 'pull', 'release').
-    window : str
-        Current window folder (i.e. 'a000', 'a001', ...).
+    window : int
+        Current window index
 
     Returns
     -------
