@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 PI = 3.14159265359
 
 
-def plumed_colvar_file(file, restraints, window):
+def plumed_colvar_file(file, restraints, window, legacy_k=True):
     """
     Writes a PLUMED colvar file for a specific window.
 
@@ -19,6 +19,11 @@ def plumed_colvar_file(file, restraints, window):
         The pAPRika restraint to be used.
     window: str
         The calculation window that will be used to index the restraint values.
+    legacy_k : bool
+        Are the restraints based on legacy force constants? Old MD codes
+        like AMBER and CHARMM requires the user to half the force constant
+        beforehand. New MD codes like GROMACS and NAMD requires the user
+        to set the force constant without the 1/2 factor.
 
 
     Examples
@@ -42,23 +47,23 @@ def plumed_colvar_file(file, restraints, window):
     file.write("UNITS LENGTH=A ENERGY=kcal/mol TIME=ns\n")
 
     if 'static' in restraints.keys():
-        colvar = restraint_to_colvar(restraints['static'], phase, window)
+        colvar = restraint_to_colvar(restraints['static'], phase, window, legacy_k)
         write_colvar_to_plumed(file, colvar, 'static')
 
     if 'host' in restraints.keys():
-        colvar = restraint_to_colvar(restraints['host'], phase, window)
+        colvar = restraint_to_colvar(restraints['host'], phase, window, legacy_k)
         write_colvar_to_plumed(file, colvar, 'host')
 
     if 'guest' in restraints.keys():
-        colvar = restraint_to_colvar(restraints['guest'], phase, window)
+        colvar = restraint_to_colvar(restraints['guest'], phase, window, legacy_k)
         write_colvar_to_plumed(file, colvar, 'guest')
 
     if 'wall' in restraints.keys():
-        colvar = restraint_to_colvar(restraints['wall'], phase, window)
+        colvar = restraint_to_colvar(restraints['wall'], phase, window, legacy_k)
         write_colvar_to_plumed(file, colvar, 'wall')
 
 
-def restraint_to_colvar(restraints, phase, window):
+def restraint_to_colvar(restraints, phase, window, legacy_k=True):
     """
     Extract information about restraints and store in a python dictionary
 
@@ -77,6 +82,9 @@ def restraint_to_colvar(restraints, phase, window):
         A dictionary containing the information of a particular restraint block.
 
     """
+    factor = 1.0
+    if legacy_k:
+        factor = 2.0
 
     colvar = {'atoms': [], 'AT': [], 'KAPPA': [], 'type': [], 'ncolvar': len(restraints)}
     for restraint in restraints:
@@ -112,7 +120,7 @@ def restraint_to_colvar(restraints, phase, window):
 
         # Target and force constant
         target = restraint.phase[phase]["targets"][window]
-        force_constant = restraint.phase[phase]["force_constants"][window]
+        force_constant = restraint.phase[phase]["force_constants"][window] * factor
         if angle:
             target *= PI / 180.0
 
@@ -124,7 +132,7 @@ def restraint_to_colvar(restraints, phase, window):
     return colvar
 
 
-def write_colvar_to_plumed(file, colvar, block, legacy_k=False):
+def write_colvar_to_plumed(file, colvar, block):
     """
     Write collective variable and restraints to file
 
@@ -136,11 +144,6 @@ def write_colvar_to_plumed(file, colvar, block, legacy_k=False):
         Dictionary containing information about the collective variable.
     block : str
         Restraint type for naming purposes.
-    legacy_k : bool
-        Are the restraints based on legacy force constants? Old MD codes
-        like AMBER and CHARMM requires the user to half the force constant
-        beforehand. New MD codes like GROMACS and NAMD requires the user
-        to set the force constant without the 1/2 factor.
 
 
     Examples
@@ -160,10 +163,6 @@ def write_colvar_to_plumed(file, colvar, block, legacy_k=False):
     LABEL=static
 
     """
-    factor = 1.0
-    if legacy_k:
-        factor = 2.0
-
     file.write(f"# {block} restraints\n")
     arg = ""
     at = ""
@@ -187,7 +186,7 @@ def write_colvar_to_plumed(file, colvar, block, legacy_k=False):
         file.write(f"{block[0]}_{ndx + 1}: {colvar['type'][ndx]} ATOMS={atoms} NOPBC\n")
         arg += f"{block[0]}_{ndx + 1},"
         at += f"{colvar['AT'][ndx]:0.4f},"
-        kappa += f"{factor * colvar['KAPPA'][ndx]:0.2f},"
+        kappa += f"{colvar['KAPPA'][ndx]:0.2f},"
 
     if block == "wall":
         bias = "UPPER_WALLS"
@@ -202,7 +201,7 @@ def write_colvar_to_plumed(file, colvar, block, legacy_k=False):
     file.write(f"... {bias}\n")
 
 
-def write_dummy_to_plumed(file, dummy_atoms, kpos=50.0, legacy_k=False):
+def write_dummy_to_plumed(file, dummy_atoms, kpos=100.0):
     """
     Append to the plumed.dat file the dummy atoms colvar and restraints
 
@@ -214,11 +213,6 @@ def write_dummy_to_plumed(file, dummy_atoms, kpos=50.0, legacy_k=False):
         Dictionary containing information about the dummy atoms.
     kpos : float
         Spring constant used to restrain dummy atoms (kcal/mol/A^2).
-    legacy_k : bool
-        Are the restraints based on legacy force constants? Old MD codes
-        like AMBER and CHARMM requires the user to half the force constant
-        beforehand. New MD codes like GROMACS and NAMD requires the user
-        to set the force constant without the 1/2 factor.
 
 
     Example
@@ -235,10 +229,6 @@ def write_dummy_to_plumed(file, dummy_atoms, kpos=50.0, legacy_k=False):
     RESTRAINT
 
     """
-    factor = 1.0
-    if legacy_k:
-        factor = 2.0
-
     file.write("# dummy restraints\n")
     file.write(f"dm1: POSITION ATOM={dummy_atoms['DM1']['idx']} NOPBC\n")
     file.write(f"dm2: POSITION ATOM={dummy_atoms['DM2']['idx']} NOPBC\n")
@@ -258,7 +248,6 @@ def write_dummy_to_plumed(file, dummy_atoms, kpos=50.0, legacy_k=False):
           f"{dummy_atoms['DM3']['pos'][1]:0.3f}," \
           f"{dummy_atoms['DM3']['pos'][2]:0.3f},"
 
-    kpos *= factor
     kappa = f"{kpos:0.1f},{kpos:0.1f},{kpos:0.1f}," \
             f"{kpos:0.1f},{kpos:0.1f},{kpos:0.1f}," \
             f"{kpos:0.1f},{kpos:0.1f},{kpos:0.1f},"
