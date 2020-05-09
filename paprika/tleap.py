@@ -1,10 +1,10 @@
-import logging as log
 import os as os
 import re as re
 import subprocess as sp
-
+import logging as log
 import numpy as np
 import parmed as pmd
+
 
 N_A = 6.0221409 * 10 ** 23
 ANGSTROM_CUBED_TO_LITERS = 1 * 10 ** -27
@@ -725,6 +725,27 @@ class System(object):
                     self.exponent
                 )
             )
+
+    def repartition_hydrogen_mass(self, options=None):
+        """
+        Repartitions the masses of Hydrogen atoms in the system by a factor 3 and 
+        overwrites the prmtop file: "self.output_path/self.output_prefix.prmtop"
+
+        Parameters
+        ----------
+        options : str
+            Optional keyword(s) for the repartitioning and following the 
+            parmed.tools.actions documentation the usage is '[<mass>] [dowater]'.
+
+        """
+
+        prmtop = os.path.join(self.output_path, self.output_prefix + ".prmtop")
+
+        structure = pmd.load_file(prmtop, structure=True)
+
+        pmd.tools.actions.HMassRepartition(structure, arg_list=options).execute()
+
+        structure.save(prmtop, overwrite=True)
 
     def add_dummy_to_plumed(self, serial=True):
         """
