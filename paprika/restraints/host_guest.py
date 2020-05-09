@@ -25,7 +25,7 @@ class HostGuestRestraints(object):
       for the host.
 
     TODO:
-        - implement a distance-based conformational restraint module
+        - implement an automatic distance-based conformational restraint module
         - implement restraints that is not based on Boresch-style anchoring atoms
 
     Parameters
@@ -81,30 +81,35 @@ class HostGuestRestraints(object):
             self._auto_apr = False
             self._continuous_apr = False
             self._protocol = "a"
+
         # Pull only protocol
         elif self._windows[0] == 0 and self._windows[1] != 0 and self._windows[2] == 0:
             print(">>> Setting up pull only protocol")
             self._auto_apr = False
             self._continuous_apr = False
             self._protocol = "p"
+
         # Release only protocol
         elif self._windows[0] == 0 and self._windows[1] == 0 and self._windows[2] != 0:
             print(">>> Setting up release only protocol")
             self._auto_apr = False
             self._continuous_apr = False
             self._protocol = "r"
+
         # Attach-Pull only protocol
         elif self._windows[0] != 0 and self._windows[1] != 0 and self._windows[2] == 0:
             print(">>> Setting up attach-pull protocol")
             self._auto_apr = True
             self._continuous_apr = True
             self._protocol = "a-p"
+
         # Attach-Pull-Release protocol
         elif self._windows[0] != 0 and self._windows[1] != 0 and self._windows[2] != 0:
             print(">>> Setting up full attach-pull-release protocol")
             self._auto_apr = True
             self._continuous_apr = True
             self._protocol = "a-p-r"
+
         else:
             sys.exit("Protocol currently not supported")
 
@@ -286,10 +291,17 @@ class HostGuestRestraints(object):
             this.amber_index = True
             this.topology = self._structure
 
+            # Distance
             this.mask1 = atoms[0]
             this.mask2 = atoms[1]
-            this.mask3 = atoms[2]
-            this.mask4 = atoms[3]
+
+            # Angle
+            if len(atoms) == 3:
+                this.mask3 = atoms[2]
+
+            # Torsion
+            elif len(atoms) == 4:
+                this.mask4 = atoms[3]
 
             if (
                 self._protocol == "a"
@@ -406,13 +418,16 @@ class HostGuestRestraints(object):
         self, template,
     ):
         """
-        Method to setup wall restraints on the guest molecule so that weakly bound guest will
-        not unbind from the host during the attach phase.
+        Method to setup wall restraints (half-harmonic) on the guest molecule so that
+        weakly bound guest will not unbind from the host during the attach phase.
+
+        Currently only supports distance and angle based restraints
 
         Parameters
         ----------
         template: dict
-            List of distance/angle definition for wall restraints
+            Dictionary of wall restraints with information about atoms, target
+            and force constant
 
             template = {
                 'atoms': [[":1@O2", ":8@C1"], [":DM2", ":8@C1", ":8@C7"], ...],
@@ -438,18 +453,17 @@ class HostGuestRestraints(object):
             this.attach["fc_initial"] = force_constant
             this.attach["fc_final"] = force_constant
 
-            # Bonds
+            this.custom_restraint_values["rk2"] = force_constant
+
+            # Distance
             if len(atoms) == 2:
-                this.custom_restraint_values["rk2"] = 50.0
-                this.custom_restraint_values["rk3"] = 50.0
+                this.custom_restraint_values["rk3"] = force_constant
                 this.custom_restraint_values["r1"] = 0.0
                 this.custom_restraint_values["r2"] = 0.0
 
             # Angles
             elif len(atoms) == 3:
                 this.mask3 = atoms[2]
-
-                this.custom_restraint_values["rk2"] = 500.0
                 this.custom_restraint_values["rk3"] = 0.0
 
             this.attach["target"] = target
@@ -502,10 +516,6 @@ class HostGuestRestraints(object):
             }
 
         for index, atoms in enumerate(guest_atoms):
-            if len(atoms) > 2:
-                angle = True
-            else:
-                angle = False
             this = DAT_restraint()
             this.auto_apr = self._auto_apr
             this.continuous_apr = self._continuous_apr
@@ -513,13 +523,23 @@ class HostGuestRestraints(object):
             this.topology = self._structure
             this.mask1 = atoms[0]
             this.mask2 = atoms[1]
-            if angle:
+
+            # Distance
+            if len(atoms) == 2:
+                this.attach["fc_final"] = distance_fc
+                this.release["fc_final"] = distance_fc
+
+            # Angles
+            elif len(atoms) == 3:
                 this.mask3 = atoms[2]
                 this.attach["fc_final"] = angle_fc
                 this.release["fc_final"] = angle_fc
-            else:
-                this.attach["fc_final"] = distance_fc
-                this.release["fc_final"] = distance_fc
+
+            # Torsion
+            elif len(atoms) == 4:
+                this.mask4 = atoms[3]
+                this.attach["fc_final"] = angle_fc
+                this.release["fc_final"] = angle_fc
 
             if (
                 self._protocol == "a"
