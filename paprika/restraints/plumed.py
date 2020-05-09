@@ -28,13 +28,12 @@ def plumed_colvar_file(file, restraints, window):
 
     for window in window_list:
         with open(f"windows/{window}/plumed.dat", "w") as file:
-            if window[0] == 'a':
-                restraints = {
-                    "static": static_restraints,
-                    "guest": guest_restraints,
-                    "host": conformational_restraints,
-                    "wall": guest_wall_restraints,
-                }
+            restraints = {
+                "static": static_restraints,
+                "guest": guest_restraints,
+                "host": conformational_restraints,
+                "wall": guest_wall_restraints,
+            }
             plumed_colvar_file(file, restraints, window)
 
     """
@@ -69,8 +68,8 @@ def restraint_to_colvar(restraints, phase, window):
         List of DAT_restraint() object.
     phase : str
         Which phase of the simulation ('attach', 'pull', 'release').
-    window : str
-        Current window folder (i.e. 'a000', 'a001', ...).
+    window : int
+        Current window index
 
     Returns
     -------
@@ -161,10 +160,9 @@ def write_colvar_to_plumed(file, colvar, block, legacy_k=False):
     LABEL=static
 
     """
+    factor = 1.0
     if legacy_k:
         factor = 2.0
-    else:
-        factor = 1.0
 
     file.write(f"# {block} restraints\n")
     arg = ""
@@ -222,9 +220,6 @@ def write_dummy_to_plumed(file, dummy_atoms, kpos=50.0, legacy_k=False):
         beforehand. New MD codes like GROMACS and NAMD requires the user
         to set the force constant without the 1/2 factor.
 
-    Returns
-    -------
-    None
 
     Example
     -------
@@ -240,10 +235,9 @@ def write_dummy_to_plumed(file, dummy_atoms, kpos=50.0, legacy_k=False):
     RESTRAINT
 
     """
+    factor = 1.0
     if legacy_k:
         factor = 2.0
-    else:
-        factor = 1.0
 
     file.write("# dummy restraints\n")
     file.write(f"dm1: POSITION ATOM={dummy_atoms['DM1']['idx']} NOPBC\n")
