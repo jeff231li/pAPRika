@@ -26,7 +26,7 @@ def plumed_colvar_file(file, restraints, window):
     Below is an example of converting restraints defined by DAT_restraint()
     to a Plumed colvar format.
 
-    for window in self.window_list:
+    for window in window_list:
         with open(f"windows/{window}/plumed.dat", "w") as file:
             if window[0] == 'a':
                 restraints = {
