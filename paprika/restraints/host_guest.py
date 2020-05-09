@@ -807,7 +807,7 @@ class HostGuestRestraints(object):
                             "host": self._conformational_restraints,
                         }
 
-                    plumed_colvar_file(file, restraints, window)
+                    plumed_colvar_file(file, restraints, window, legacy_k=True)
 
                     if ref_from_structure:
                         self._fetch_dummy_atoms(serial=True)
