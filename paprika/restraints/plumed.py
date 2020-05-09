@@ -14,7 +14,7 @@ def plumed_colvar_file(file, restraints, window):
     Parameters
     ----------
     file: class '_io.TextIOWrapper'
-        The file object handle to save the plumed file
+        The file object handle to save the plumed file.
     restraints: dict
         The pAPRika restraint to be used.
     window: str
@@ -23,8 +23,10 @@ def plumed_colvar_file(file, restraints, window):
 
     Examples
     --------
+    Below is an example of converting restraints defined by DAT_restraint()
+    to a Plumed colvar format.
 
-    for window in self.window_list:
+    for window in window_list:
         with open(f"windows/{window}/plumed.dat", "w") as file:
             if window[0] == 'a':
                 restraints = {
@@ -40,21 +42,21 @@ def plumed_colvar_file(file, restraints, window):
     window, phase = parse_window(window)
     file.write("UNITS LENGTH=A ENERGY=kcal/mol TIME=ns\n")
 
-    if "static" in restraints.keys():
-        colvar = restraint_to_colvar(restraints["static"], phase, window)
-        write_to_plumed(file, colvar, "static")
+    if 'static' in restraints.keys():
+        colvar = restraint_to_colvar(restraints['static'], phase, window)
+        write_colvar_to_plumed(file, colvar, 'static')
 
-    if "host" in restraints.keys():
-        colvar = restraint_to_colvar(restraints["host"], phase, window)
-        write_to_plumed(file, colvar, "host")
+    if 'host' in restraints.keys():
+        colvar = restraint_to_colvar(restraints['host'], phase, window)
+        write_colvar_to_plumed(file, colvar, 'host')
 
-    if "guest" in restraints.keys():
-        colvar = restraint_to_colvar(restraints["guest"], phase, window)
-        write_to_plumed(file, colvar, "guest")
+    if 'guest' in restraints.keys():
+        colvar = restraint_to_colvar(restraints['guest'], phase, window)
+        write_colvar_to_plumed(file, colvar, 'guest')
 
-    if "wall" in restraints.keys():
-        colvar = restraint_to_colvar(restraints["wall"], phase, window)
-        write_to_plumed(file, colvar, "wall")
+    if 'wall' in restraints.keys():
+        colvar = restraint_to_colvar(restraints['wall'], phase, window)
+        write_colvar_to_plumed(file, colvar, 'wall')
 
 
 def restraint_to_colvar(restraints, phase, window):
@@ -64,25 +66,20 @@ def restraint_to_colvar(restraints, phase, window):
     Parameters
     ----------
     restraints : list
-        List of DAT_restraint() object
+        List of DAT_restraint() object.
     phase : str
-        Which phase of the simulation ('attach', 'pull', 'release')
+        Which phase of the simulation ('attach', 'pull', 'release').
     window : str
-        Current window folder (i.e. 'a000', 'a001', ...)
+        Current window folder (i.e. 'a000', 'a001', ...).
 
     Returns
     -------
     colvar : dict
-        A dictionary containing the information of a particular restraint block
+        A dictionary containing the information of a particular restraint block.
 
     """
-    colvar = {
-        "atoms": [],
-        "AT": [],
-        "KAPPA": [],
-        "type": [],
-        "ncolvar": len(restraints),
-    }
+
+    colvar = {'atoms': [], 'AT': [], 'KAPPA': [], 'type': [], 'ncolvar': len(restraints)}
     for restraint in restraints:
         atoms = []
         angle = False
@@ -128,20 +125,20 @@ def restraint_to_colvar(restraints, phase, window):
     return colvar
 
 
-def write_to_plumed(file, colvar, block, legacy_k=False):
+def write_colvar_to_plumed(file, colvar, block, legacy_k=False):
     """
     Write collective variable and restraints to file
 
     Parameters
     ----------
     file : class '_io.TextIOWrapper'
-        The file object handle to save the plumed file
+        The file object handle to save the plumed file.
     colvar : dict
-        Dictionary containing information about the collective variable
+        Dictionary containing information about the collective variable.
     block : str
-        Restraint type for naming purposes
+        Restraint type for naming purposes.
     legacy_k : bool
-        Are the restraints based on legacy force constants? Old MD codes 
+        Are the restraints based on legacy force constants? Old MD codes
         like AMBER and CHARMM requires the user to half the force constant
         beforehand. New MD codes like GROMACS and NAMD requires the user
         to set the force constant without the 1/2 factor.
@@ -190,9 +187,9 @@ def write_to_plumed(file, colvar, block, legacy_k=False):
             )
 
         file.write(f"{block[0]}_{ndx + 1}: {colvar['type'][ndx]} ATOMS={atoms} NOPBC\n")
-        arg += f"{block[0]}_{ndx + 1} "
-        at += f"{colvar['AT'][ndx]:0.4f} "
-        kappa += f"{factor * colvar['KAPPA'][ndx]:0.2f} "
+        arg += f"{block[0]}_{ndx + 1},"
+        at += f"{colvar['AT'][ndx]:0.4f},"
+        kappa += f"{factor * colvar['KAPPA'][ndx]:0.2f},"
 
     if block == "wall":
         bias = "UPPER_WALLS"
@@ -200,27 +197,27 @@ def write_to_plumed(file, colvar, block, legacy_k=False):
         bias = "RESTRAINT"
 
     file.write(f"{bias} ...\n")
-    file.write(f"ARG={arg.replace(' ', ',')}\n")
-    file.write(f"AT={at.replace(' ', ',')}\n")
-    file.write(f"KAPPA={kappa.replace(' ', ',')}\n")
+    file.write(f"ARG={arg}\n")
+    file.write(f"AT={at}\n")
+    file.write(f"KAPPA={kappa}\n")
     file.write(f"LABEL={block}\n")
     file.write(f"... {bias}\n")
 
 
-def write_dummy_restraints(file, dummy_atoms, kpos=50.0, legacy_k=False):
+def write_dummy_to_plumed(file, dummy_atoms, kpos=50.0, legacy_k=False):
     """
     Append to the plumed.dat file the dummy atoms colvar and restraints
 
     Parameters
     ----------
     file : class '_io.TextIOWrapper'
-        The file object handle to save the plumed file
+        The file object handle to save the plumed file.
     dummy_atoms : dict
-        Dictionary containing information about the dummy atoms
+        Dictionary containing information about the dummy atoms.
     kpos : float
-        Spring constant used to restrain dummy atoms (kcal/mol/A^2)
+        Spring constant used to restrain dummy atoms (kcal/mol/A^2).
     legacy_k : bool
-        Are the restraints based on legacy force constants? Old MD codes 
+        Are the restraints based on legacy force constants? Old MD codes
         like AMBER and CHARMM requires the user to half the force constant
         beforehand. New MD codes like GROMACS and NAMD requires the user
         to set the force constant without the 1/2 factor.
@@ -253,32 +250,24 @@ def write_dummy_restraints(file, dummy_atoms, kpos=50.0, legacy_k=False):
     file.write(f"dm2: POSITION ATOM={dummy_atoms['DM2']['idx']} NOPBC\n")
     file.write(f"dm3: POSITION ATOM={dummy_atoms['DM3']['idx']} NOPBC\n")
 
-    arg = "dm1.x,dm1.y,dm1.z,"
-          "dm2.x,dm2.y,dm2.z,"
+    arg = "dm1.x,dm1.y,dm1.z," \
+          "dm2.x,dm2.y,dm2.z," \
           "dm3.x,dm3.y,dm3.z,"
 
-    at = (
-        f"{dummy_atoms['DM1']['pos'][0]:0.3f},"
-        f"{dummy_atoms['DM1']['pos'][1]:0.3f},"
-        f"{dummy_atoms['DM1']['pos'][2]:0.3f},"
-    )
-    at += (
-        f"{dummy_atoms['DM2']['pos'][0]:0.3f},"
-        f"{dummy_atoms['DM2']['pos'][1]:0.3f},"
-        f"{dummy_atoms['DM2']['pos'][2]:0.3f},"
-    )
-    at += (
-        f"{dummy_atoms['DM3']['pos'][0]:0.3f},"
-        f"{dummy_atoms['DM3']['pos'][1]:0.3f},"
-        f"{dummy_atoms['DM3']['pos'][2]:0.3f},"
-    )
+    at = f"{dummy_atoms['DM1']['pos'][0]:0.3f}," \
+         f"{dummy_atoms['DM1']['pos'][1]:0.3f}," \
+         f"{dummy_atoms['DM1']['pos'][2]:0.3f},"
+    at += f"{dummy_atoms['DM2']['pos'][0]:0.3f}," \
+          f"{dummy_atoms['DM2']['pos'][1]:0.3f}," \
+          f"{dummy_atoms['DM2']['pos'][2]:0.3f},"
+    at += f"{dummy_atoms['DM3']['pos'][0]:0.3f}," \
+          f"{dummy_atoms['DM3']['pos'][1]:0.3f}," \
+          f"{dummy_atoms['DM3']['pos'][2]:0.3f},"
 
     kpos *= factor
-    kappa = (
-        f"{kpos:0.1f},{kpos:0.1f},{kpos:0.1f},"
-        f"{kpos:0.1f},{kpos:0.1f},{kpos:0.1f},"
-        f"{kpos:0.1f},{kpos:0.1f},{kpos:0.1f},"
-    )
+    kappa = f"{kpos:0.1f},{kpos:0.1f},{kpos:0.1f}," \
+            f"{kpos:0.1f},{kpos:0.1f},{kpos:0.1f}," \
+            f"{kpos:0.1f},{kpos:0.1f},{kpos:0.1f},"
 
     file.write(f"RESTRAINT ...\n")
     file.write(f"ARG={arg}\n")

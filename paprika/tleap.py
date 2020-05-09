@@ -4,6 +4,7 @@ import re as re
 import subprocess as sp
 
 import numpy as np
+import parmed as pmd
 
 N_A = 6.0221409 * 10 ** 23
 ANGSTROM_CUBED_TO_LITERS = 1 * 10 ** -27
@@ -725,7 +726,7 @@ class System(object):
                 )
             )
 
-    def add_dummy_to_plumed(self, serial=True, legacy_k=False):
+    def add_dummy_to_plumed(self, serial=True):
         """
         Add dummy atom restraints to the plumed.dat file based on the
         structure created by tleap
@@ -734,16 +735,9 @@ class System(object):
         ----------
         serial : bool
             If true then atom index will start with 1 else 0
-        legacy_k : bool
-            Are the restraints based on legacy force constants? Old MD codes
-            like AMBER and CHARMM requires the user to half the force constant
-            beforehand. New MD codes like GROMACS and NAMD requires the user
-            to set the force constant without the 1/2 factor.
 
         """
         # Load structure that was created by tleap
-        import parmed as pmd
-
         structure = pmd.load_file(
             os.path.join(self.output_path, self.output_prefix + ".prmtop"),
             os.path.join(self.output_path, self.output_prefix + ".rst7"),
@@ -752,16 +746,16 @@ class System(object):
         # Extract dummy atoms
         from paprika.utils import extract_dummy_atoms
 
-        dummy_atoms = extract_dummy_atoms(structure, serial, legacy_k)
+        dummy_atoms = extract_dummy_atoms(structure, serial)
 
         # Write dummy atom collective variables to 'plumed.dat'
-        from paprika.restraints.plumed import write_dummy_restraints
+        from paprika.restraints.plumed import write_dummy_to_plumed
 
         plumed_file = os.path.join(self.output_path, "plumed.dat")
 
         if os.path.isfile(plumed_file):
             with open(plumed_file, "a") as file:
-                write_dummy_restraints(file, dummy_atoms)
+                write_dummy_to_plumed(file, dummy_atoms)
         else:
             raise Exception(
                 "ERROR: 'plumed.dat' file does not exists, please check your setup script"
