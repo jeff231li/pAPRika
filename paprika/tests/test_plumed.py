@@ -2,16 +2,17 @@
 Tests the restraints utilities.
 """
 
-import pytest
 import os
 import shutil
 
-from paprika.restraints.restraints import *
-from paprika.restraints.plumed import *
-from paprika.utils import *
+import pytest
+
 from paprika.align import *
 from paprika.dummy import *
+from paprika.restraints.plumed import *
+from paprika.restraints.restraints import *
 from paprika.tleap import *
+from paprika.utils import *
 
 
 @pytest.fixture
@@ -30,7 +31,9 @@ def test_restraint_to_colvar(clean_files):
     rest1.amber_index = True
     rest1.continuous_apr = False
     rest1.auto_apr = False
-    rest1.topology = os.path.join(os.path.dirname(__file__), "../data/cb6-but/cb6-but-notcentered.pdb")
+    rest1.topology = os.path.join(
+        os.path.dirname(__file__), "../data/cb6-but/cb6-but-notcentered.pdb"
+    )
     rest1.mask1 = ":CB6@O,O2,O4,O6,O8,O10"
     rest1.mask2 = ":BUT@C3"
     rest1.attach["target"] = 3.0
@@ -47,31 +50,29 @@ def test_restraint_to_colvar(clean_files):
     rest1.release["fc_final"] = rest1.attach["fc_final"]
     rest1.initialize()
 
-    colvar = restraint_to_colvar([rest1], 'attach', 0, legacy_k=False)
-    print(colvar)
-    assert colvar['AT'][0] == rest1.attach["target"]
-    assert colvar['KAPPA'][0] == rest1.attach['fc_initial']
+    colvar = restraint_to_colvar([rest1], "attach", 0)
+    assert colvar["AT"][0] == rest1.attach["target"]
+    assert colvar["KAPPA"][0] == rest1.attach["fc_initial"]
 
-    colvar = restraint_to_colvar([rest1], 'attach', 3, legacy_k=False)
-    print(colvar)
-    assert colvar['AT'][0] == rest1.attach["target"]
-    assert colvar['KAPPA'][0] == rest1.attach['fc_final']
+    colvar = restraint_to_colvar([rest1], "attach", 3)
+    assert colvar["AT"][0] == rest1.attach["target"]
+    assert colvar["KAPPA"][0] == rest1.attach["fc_final"]
 
-    colvar = restraint_to_colvar([rest1], 'pull', 0, legacy_k=False)
-    assert colvar['AT'][0] == rest1.pull["target_initial"]
-    assert colvar['KAPPA'][0] == rest1.pull['fc']
+    colvar = restraint_to_colvar([rest1], "pull", 0)
+    assert colvar["AT"][0] == rest1.pull["target_initial"]
+    assert colvar["KAPPA"][0] == rest1.pull["fc"]
 
-    colvar = restraint_to_colvar([rest1], 'pull', 3, legacy_k=False)
-    assert colvar['AT'][0] == rest1.pull["target_final"]
-    assert colvar['KAPPA'][0] == rest1.pull['fc']
+    colvar = restraint_to_colvar([rest1], "pull", 3)
+    assert colvar["AT"][0] == rest1.pull["target_final"]
+    assert colvar["KAPPA"][0] == rest1.pull["fc"]
 
-    colvar = restraint_to_colvar([rest1], 'release', 0, legacy_k=False)
-    assert colvar['AT'][0] == rest1.release["target"]
-    assert colvar['KAPPA'][0] == rest1.release['fc_initial']
+    colvar = restraint_to_colvar([rest1], "release", 0)
+    assert colvar["AT"][0] == rest1.release["target"]
+    assert colvar["KAPPA"][0] == rest1.release["fc_initial"]
 
-    colvar = restraint_to_colvar([rest1], 'release', 3, legacy_k=False)
-    assert colvar['AT'][0] == rest1.release["target"]
-    assert colvar['KAPPA'][0] == rest1.release['fc_final']
+    colvar = restraint_to_colvar([rest1], "release", 3)
+    assert colvar["AT"][0] == rest1.release["target"]
+    assert colvar["KAPPA"][0] == rest1.release["fc_final"]
 
 
 def test_extract_dummy_atoms(clean_files):
@@ -89,7 +90,8 @@ def test_extract_dummy_atoms(clean_files):
     host_guest = add_dummy(host_guest, residue_name="DM3", z=-15.200, y=4.200, x=-1.500)
 
     host_guest.save(
-        os.path.join(temporary_directory, "cb6-but-dum.pdb"), overwrite=True, #renumber=False
+        os.path.join(temporary_directory, "cb6-but-dum.pdb"),
+        overwrite=True,  # renumber=False
     )
 
     write_dummy_frcmod(path=temporary_directory)
