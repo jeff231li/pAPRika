@@ -77,3 +77,80 @@ def read_restraint_from_file(filename):
                     restraints['k'].append(float(restr[5]))
 
     return restraints
+
+
+def extract_guest_restraints(structure, guest_resname, restraints):
+    """
+    Utility function to extract the guest restraints in the form of:
+        [r, theta, phi, alpha, beta, gamma]
+
+    If there is no restraints applied to a particular reaction coordinate
+    a None will be inserted.
+
+    This is useful for the free-energy analysis when computing the
+    ref_state_work
+
+    Parameters
+    ----------
+    structure : parmed.Structure
+        parmed structure object of the system
+    guest_resname : str
+        Residue name of the guest molecule
+    restraints : list
+        list of restraints
+
+    Returns
+    -------
+    guest_restraints : list
+        list of guest-specific restraints
+
+    """
+    guest_resname = guest_resname.upper()
+
+    r = None
+    theta = None
+    phi = None
+    alpha = None
+    beta = None
+    gamma = None
+
+    for restraint in restraints:
+
+        mask2_residue_name = structure[restraint.mask2].residues[0].name
+
+        # Distance
+        if "DM1" in restraint.mask1 and guest_resname in mask2_residue_name and not restraint.mask3 and not \
+                restraint.mask4:
+            r = restraint
+
+        # Angle
+        if restraint.mask3 and not restraint.mask4:
+            mask3_residue_name = structure[restraint.mask3].residues[0].name
+
+            if "DM2" in restraint.mask1 and "DM1" in restraint.mask2 and guest_resname in mask3_residue_name:
+                theta = restraint
+
+            if "DM1" in restraint.mask1 and guest_resname in mask2_residue_name and guest_resname in \
+                    mask3_residue_name:
+                beta = restraint
+
+        # Dihedral
+        if restraint.mask4:
+            mask3_residue_name = structure[restraint.mask3].residues[0].name
+            mask4_residue_name = structure[restraint.mask4].residues[0].name
+
+            if "DM3" in restraint.mask1 and "DM2" in restraint.mask2 and "DM1" in restraint.mask3 and guest_resname \
+                    in mask4_residue_name:
+                phi = restraint
+
+            if "DM2" in restraint.mask1 and "DM1" in restraint.mask2 and guest_resname in mask3_residue_name \
+                    and guest_resname in mask4_residue_name:
+                alpha = restraint
+
+            if "DM1" in restraint.mask1 and guest_resname in mask2_residue_name and guest_resname in \
+                    mask3_residue_name and guest_resname in mask4_residue_name:
+                gamma = restraint
+
+    guest_restraints = [r, theta, phi, alpha, beta, gamma]
+
+    return guest_restraints
