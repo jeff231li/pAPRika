@@ -5,6 +5,7 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
+
 def read_yaml(file):
     """
     Read `Taproom <https://github.com/slochower/host-guest-benchmarks>`_ -style YAML-formatted instructions for
@@ -30,6 +31,30 @@ def read_yaml(file):
         yaml_data = de_alias(yaml_data)
 
     return yaml_data
+
+
+def read_yaml_aliases(file):
+    with open(file, "r") as f:
+        yaml_data = yaml.load(f, Loader=yaml.FullLoader)
+
+    anchor_def = ["D1","D2","D3","H1","H2","H3","G1","G2","G3"]
+    int_def = [1,1,1,1,1,1,1,1,1]
+
+    anchor_atoms = {}
+    if "aliases" in yaml_data.keys():
+        for alias in yaml_data["aliases"]:
+            definition = list(alias.items())[0]
+            anchor = definition[0]
+            atoms = definition[1]
+            if anchor in anchor_def:
+                anchor_atoms[anchor] = atoms
+                int_def[anchor_def.index(anchor)] = 0
+        if sum(int_def) != 0:
+            for i in range(len(int_def)):
+                if int_def[i] != 0:
+                    anchor_atoms[anchor_def[i]] = 0
+
+    return anchor_atoms
 
 
 def multiple_replace(dict, text):
