@@ -47,27 +47,29 @@ def test_restraint_to_colvar(clean_files):
     rest1.release["fc_final"] = rest1.attach["fc_final"]
     rest1.initialize()
 
-    colvar = restraint_to_colvar([rest1], 'attach', 0)
+    colvar = restraint_to_colvar([rest1], 'attach', 0, legacy_k=False)
+    print(colvar)
     assert colvar['AT'][0] == rest1.attach["target"]
     assert colvar['KAPPA'][0] == rest1.attach['fc_initial']
 
-    colvar = restraint_to_colvar([rest1], 'attach', 3)
+    colvar = restraint_to_colvar([rest1], 'attach', 3, legacy_k=False)
+    print(colvar)
     assert colvar['AT'][0] == rest1.attach["target"]
     assert colvar['KAPPA'][0] == rest1.attach['fc_final']
 
-    colvar = restraint_to_colvar([rest1], 'pull', 0)
+    colvar = restraint_to_colvar([rest1], 'pull', 0, legacy_k=False)
     assert colvar['AT'][0] == rest1.pull["target_initial"]
     assert colvar['KAPPA'][0] == rest1.pull['fc']
 
-    colvar = restraint_to_colvar([rest1], 'pull', 3)
+    colvar = restraint_to_colvar([rest1], 'pull', 3, legacy_k=False)
     assert colvar['AT'][0] == rest1.pull["target_final"]
     assert colvar['KAPPA'][0] == rest1.pull['fc']
 
-    colvar = restraint_to_colvar([rest1], 'release', 0)
+    colvar = restraint_to_colvar([rest1], 'release', 0, legacy_k=False)
     assert colvar['AT'][0] == rest1.release["target"]
     assert colvar['KAPPA'][0] == rest1.release['fc_initial']
 
-    colvar = restraint_to_colvar([rest1], 'release', 3)
+    colvar = restraint_to_colvar([rest1], 'release', 3, legacy_k=False)
     assert colvar['AT'][0] == rest1.release["target"]
     assert colvar['KAPPA'][0] == rest1.release['fc_final']
 
