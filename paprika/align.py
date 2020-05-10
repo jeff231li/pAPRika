@@ -194,7 +194,7 @@ def offset_structure(structure, offset):
     return structure
 
 
-def move_to_origin(structure, mask):
+def move_com_to_origin(structure, mask):
     # Get masses of atoms
     masses = [atom.mass for atom in structure[mask].atoms]
 
