@@ -38,10 +38,10 @@ class HostGuestRestraints(object):
         Base name of the host-guest system
     anchor_atoms : dict
         Dictionary containing definition of anchor atoms {'G1': '8@C7', 'G2': '8@C1', ...}
-    windows_length : list
-        List of the length of windows for each phase [15, 45, 15]
     structure : `class`:`parmed.structure.Structure`
         structure of the host-guest system with dummy atoms (vacuum or solvated)
+    windows : list
+        List of the windows for each phase [[0.0, 0.01, 0.2], [6.0, 6.4, 6.8], [1.0, 0.8 0.0]]
 
     """
 
@@ -51,14 +51,14 @@ class HostGuestRestraints(object):
         host_resname,
         base_name,
         anchor_atoms,
-        windows_length,
         structure,
+        windows=None,
     ):
         self._guest_resname = guest_resname
         self._host_resname = host_resname
         self._base_name = base_name
         self._anchor_atoms = anchor_atoms
-        self._windows = windows_length
+        self._windows = None
         self._structure = structure
         self._apr_list = {
             "attach": {"fractions": [], "windows": []},
@@ -75,6 +75,10 @@ class HostGuestRestraints(object):
         self._auto_apr = None
         self._protocol = None
 
+        if windows is not None:
+            self.set_APR_windows(a=windows[0], p=windows[1], r=windows[2])
+
+    def _init_protocol(self):
         # Attach only protocol
         if self._windows[0] != 0 and self._windows[1] == 0 and self._windows[2] == 0:
             print(">>> Setting up attach only protocol")
@@ -584,9 +588,7 @@ class HostGuestRestraints(object):
             dumped = json.dumps(self._apr_list, cls=NumpyEncoder)
             f.write(dumped)
 
-    def set_APR_windows(
-        self, a=None, p=None, r=None
-    ):
+    def set_APR_windows(self, a=None, p=None, r=None):
         """
         Sets the APR windows/fractions
 
@@ -603,6 +605,14 @@ class HostGuestRestraints(object):
         self._apr_list["attach"]["fractions"] = a
         self._apr_list["pull"]["fractions"] = p
         self._apr_list["release"]["fractions"] = r
+
+        # Initialize APR protocol
+        self._windows = [
+            0 if a is None else len(a),
+            0 if p is None else len(p),
+            0 if r is None else len(r),
+        ]
+        self._init_protocol()
 
     def get_window_list(self):
         return self._window_list
@@ -687,12 +697,10 @@ class HostGuestRestraints(object):
                         atom.xz += target_difference
 
                 structure.save(
-                    os.path.join(sub_folder, f"{self._base_name}.prmtop"),
-                    overwrite=True,
+                    os.path.join(sub_folder, f"{self._base_name}.prmtop"), overwrite=True,
                 )
                 structure.save(
-                    os.path.join(sub_folder, f"{self._base_name}.rst7"),
-                    overwrite=True,
+                    os.path.join(sub_folder, f"{self._base_name}.rst7"), overwrite=True,
                 )
 
             elif window[0] == "r":
