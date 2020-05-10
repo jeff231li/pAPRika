@@ -56,25 +56,25 @@ def read_restraint_from_file(filename):
     with open(filename, 'r') as file:
         for line in file:
             if not line.startswith("#"):
-                restr = line.split()
+                line = line.split()
 
                 # Distance
-                if len(restr) == 4:
-                    restraints['atoms'].append([restr[0], restr[1]])
-                    restraints['target'].append(float(restr[2]))
-                    restraints['k'].append(float(restr[3]))
+                if len(line) == 4:
+                    restraints['atoms'].append([line[0], line[1]])
+                    restraints['target'].append(float(line[2]))
+                    restraints['k'].append(float(line[3]))
 
                 # Angle
-                elif len(restr) == 5:
-                    restraints['atoms'].append([restr[0], restr[1], restr[2]])
-                    restraints['target'].append(float(restr[3]))
-                    restraints['k'].append(float(restr[4]))
+                elif len(line) == 5:
+                    restraints['atoms'].append([line[0], line[1], line[2]])
+                    restraints['target'].append(float(line[3]))
+                    restraints['k'].append(float(line[4]))
 
                 # Dihedral
-                elif len(restr) == 6:
-                    restraints['atoms'].append([restr[0], restr[1], restr[2], restr[3]])
-                    restraints['target'].append(float(restr[4]))
-                    restraints['k'].append(float(restr[5]))
+                elif len(line) == 6:
+                    restraints['atoms'].append([line[0], line[1], line[2], line[3]])
+                    restraints['target'].append(float(line[4]))
+                    restraints['k'].append(float(line[5]))
 
     return restraints
 
