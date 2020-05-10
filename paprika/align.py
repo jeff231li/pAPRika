@@ -192,3 +192,50 @@ def offset_structure(structure, offset):
     structure.coordinates = offset_coords
     logger.info("Added offset of {} to atomic coordinates...".format(offset))
     return structure
+
+
+def move_com_to_origin(structure, mask):
+    # Get masses of atoms
+    masses = [atom.mass for atom in structure[mask].atoms]
+
+    # Shift COM to origin
+    com = pmd.geometry.center_of_mass(
+        structure[mask].coordinates, np.asarray(masses)
+    )
+    structure.coordinates -= com
+
+    return structure
+
+
+def move_anchor_to_origin(structure, center_atom, mask=None, save=False, filename=None):
+    center_coordinates = structure[center_atom].coordinates
+    center_masses = [atom.mass for atom in structure[center_atom].atoms]
+    center_com = pmd.geometry.center_of_mass(
+        np.asarray(center_coordinates), np.asarray(center_masses)
+    )
+
+    logger.info(
+        "Centering system based on moving atom {} to the origin...".format(center_atom)
+    )
+
+    if mask is None:
+        mask = [1, 1, 1]
+    mask = np.array(mask)
+
+    aligned_coords = np.empty_like(structure.coordinates)
+    for atom in range(len(structure.atoms)):
+        aligned_coords[atom] = structure.coordinates[atom] + -1.0 * center_com * mask
+    structure.coordinates = aligned_coords
+
+    if save:
+        if not filename:
+            logger.warning(
+                "Unable to save aligned coordinates (no filename provided)..."
+            )
+        else:
+            logger.info("Saved aligned coordinates to {}".format(filename))
+            # This seems to write out HETATM in place of ATOM
+            # We should offer the option of writing a mol2 file, directly.
+            structure.write_pdb(filename)
+
+    return structure
