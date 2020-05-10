@@ -46,21 +46,21 @@ def plumed_colvar_file(file, restraints, window, legacy_k=True):
     window, phase = parse_window(window)
     file.write("UNITS LENGTH=A ENERGY=kcal/mol TIME=ns\n")
 
-    if 'static' in restraints.keys():
-        colvar = restraint_to_colvar(restraints['static'], phase, window, legacy_k)
-        write_colvar_to_plumed(file, colvar, 'static')
+    if "static" in restraints.keys():
+        colvar = restraint_to_colvar(restraints["static"], phase, window, legacy_k)
+        write_colvar_to_plumed(file, colvar, "static")
 
-    if 'host' in restraints.keys():
-        colvar = restraint_to_colvar(restraints['host'], phase, window, legacy_k)
-        write_colvar_to_plumed(file, colvar, 'host')
+    if "host" in restraints.keys():
+        colvar = restraint_to_colvar(restraints["host"], phase, window, legacy_k)
+        write_colvar_to_plumed(file, colvar, "host")
 
-    if 'guest' in restraints.keys():
-        colvar = restraint_to_colvar(restraints['guest'], phase, window, legacy_k)
-        write_colvar_to_plumed(file, colvar, 'guest')
+    if "guest" in restraints.keys():
+        colvar = restraint_to_colvar(restraints["guest"], phase, window, legacy_k)
+        write_colvar_to_plumed(file, colvar, "guest")
 
-    if 'wall' in restraints.keys():
-        colvar = restraint_to_colvar(restraints['wall'], phase, window, legacy_k)
-        write_colvar_to_plumed(file, colvar, 'wall')
+    if "wall" in restraints.keys():
+        colvar = restraint_to_colvar(restraints["wall"], phase, window, legacy_k)
+        write_colvar_to_plumed(file, colvar, "wall")
 
 
 def restraint_to_colvar(restraints, phase, window, legacy_k=True):
@@ -91,7 +91,14 @@ def restraint_to_colvar(restraints, phase, window, legacy_k=True):
     if legacy_k:
         factor = 2.0
 
-    colvar = {'atoms': [], 'AT': [], 'KAPPA': [], 'type': [], 'ncolvar': len(restraints)}
+    colvar = {
+        "atoms": [],
+        "AT": [],
+        "KAPPA": [],
+        "type": [],
+        "factor": factor,
+        "ncolvar": len(restraints),
+    }
     for restraint in restraints:
         atoms = []
         angle = False
@@ -125,7 +132,7 @@ def restraint_to_colvar(restraints, phase, window, legacy_k=True):
 
         # Target and force constant
         target = restraint.phase[phase]["targets"][window]
-        force_constant = restraint.phase[phase]["force_constants"][window] * factor
+        force_constant = restraint.phase[phase]["force_constants"][window]
         if angle:
             target *= PI / 180.0
 
@@ -191,7 +198,7 @@ def write_colvar_to_plumed(file, colvar, block):
         file.write(f"{block[0]}_{ndx + 1}: {colvar['type'][ndx]} ATOMS={atoms} NOPBC\n")
         arg += f"{block[0]}_{ndx + 1},"
         at += f"{colvar['AT'][ndx]:0.4f},"
-        kappa += f"{colvar['KAPPA'][ndx]:0.2f},"
+        kappa += f"{colvar['KAPPA'][ndx] * colvar['factor']:0.2f},"
 
     if block == "wall":
         bias = "UPPER_WALLS"
@@ -239,23 +246,29 @@ def write_dummy_to_plumed(file, dummy_atoms, kpos=100.0):
     file.write(f"dm2: POSITION ATOM={dummy_atoms['DM2']['idx']} NOPBC\n")
     file.write(f"dm3: POSITION ATOM={dummy_atoms['DM3']['idx']} NOPBC\n")
 
-    arg = "dm1.x,dm1.y,dm1.z," \
-          "dm2.x,dm2.y,dm2.z," \
-          "dm3.x,dm3.y,dm3.z,"
+    arg = "dm1.x,dm1.y,dm1.z," "dm2.x,dm2.y,dm2.z," "dm3.x,dm3.y,dm3.z,"
 
-    at = f"{dummy_atoms['DM1']['pos'][0]:0.3f}," \
-         f"{dummy_atoms['DM1']['pos'][1]:0.3f}," \
-         f"{dummy_atoms['DM1']['pos'][2]:0.3f},"
-    at += f"{dummy_atoms['DM2']['pos'][0]:0.3f}," \
-          f"{dummy_atoms['DM2']['pos'][1]:0.3f}," \
-          f"{dummy_atoms['DM2']['pos'][2]:0.3f},"
-    at += f"{dummy_atoms['DM3']['pos'][0]:0.3f}," \
-          f"{dummy_atoms['DM3']['pos'][1]:0.3f}," \
-          f"{dummy_atoms['DM3']['pos'][2]:0.3f},"
+    at = (
+        f"{dummy_atoms['DM1']['pos'][0]:0.3f},"
+        f"{dummy_atoms['DM1']['pos'][1]:0.3f},"
+        f"{dummy_atoms['DM1']['pos'][2]:0.3f},"
+    )
+    at += (
+        f"{dummy_atoms['DM2']['pos'][0]:0.3f},"
+        f"{dummy_atoms['DM2']['pos'][1]:0.3f},"
+        f"{dummy_atoms['DM2']['pos'][2]:0.3f},"
+    )
+    at += (
+        f"{dummy_atoms['DM3']['pos'][0]:0.3f},"
+        f"{dummy_atoms['DM3']['pos'][1]:0.3f},"
+        f"{dummy_atoms['DM3']['pos'][2]:0.3f},"
+    )
 
-    kappa = f"{kpos:0.1f},{kpos:0.1f},{kpos:0.1f}," \
-            f"{kpos:0.1f},{kpos:0.1f},{kpos:0.1f}," \
-            f"{kpos:0.1f},{kpos:0.1f},{kpos:0.1f},"
+    kappa = (
+        f"{kpos:0.1f},{kpos:0.1f},{kpos:0.1f},"
+        f"{kpos:0.1f},{kpos:0.1f},{kpos:0.1f},"
+        f"{kpos:0.1f},{kpos:0.1f},{kpos:0.1f},"
+    )
 
     file.write(f"RESTRAINT ...\n")
     file.write(f"ARG={arg}\n")
