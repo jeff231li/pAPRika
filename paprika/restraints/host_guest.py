@@ -11,6 +11,7 @@ from paprika.restraints import DAT_restraint, static_DAT_restraint
 from paprika.restraints.amber import amber_restraint_line
 from paprika.restraints.plumed import plumed_colvar_file, write_dummy_to_plumed
 from paprika.restraints.restraints import create_window_list
+from paprika.restraints.utils import parse_restraints
 
 logger = logging.getLogger(__name__)
 
@@ -304,7 +305,8 @@ class HostGuestRestraints(object):
                 this.mask3 = atoms[2]
 
             # Torsion
-            elif len(atoms) == 4:
+            if len(atoms) == 4:
+                this.mask3 = atoms[2]
                 this.mask4 = atoms[3]
 
             if (
@@ -571,23 +573,6 @@ class HostGuestRestraints(object):
 
         print(f"\t* There are {len(self._guest_restraints)} guest restraints")
 
-    def _write_apr_windows(self):
-        """
-        Extract APR windows and write to a json file
-        """
-
-        for window in self._window_list:
-            if window[0] == "a":
-                self._apr_list["attach"]["windows"].append(window)
-            if window[0] == "p":
-                self._apr_list["pull"]["windows"].append(window)
-            if window[0] == "r":
-                self._apr_list["release"]["windows"].append(window)
-
-        with open("apr_windows.json", "w") as f:
-            dumped = json.dumps(self._apr_list, cls=NumpyEncoder)
-            f.write(dumped)
-
     def set_APR_windows(self, a=None, p=None, r=None):
         """
         Sets the APR windows/fractions
@@ -613,6 +598,23 @@ class HostGuestRestraints(object):
             0 if r is None else len(r),
         ]
         self._init_protocol()
+
+    def _dump_apr_windows(self):
+        """
+        Extract APR windows and write to a json file
+        """
+
+        for window in self._window_list:
+            if window[0] == "a":
+                self._apr_list["attach"]["windows"].append(window)
+            if window[0] == "p":
+                self._apr_list["pull"]["windows"].append(window)
+            if window[0] == "r":
+                self._apr_list["release"]["windows"].append(window)
+
+        with open("apr_windows.json", "w") as f:
+            dumped = json.dumps(self._apr_list, cls=NumpyEncoder)
+            f.write(dumped)
 
     def get_window_list(self):
         return self._window_list
@@ -708,6 +710,7 @@ class HostGuestRestraints(object):
                 if self._protocol == "r":
                     prmtop = self._structure.name
                     inpcrd = self._structure.name.replace("prmtop", "rst7")
+
                 else:
                     pull_window = os.path.join("windows", self.get_last_pull_window())
                     prmtop = os.path.join(pull_window, f"{self._base_name}.prmtop")
@@ -745,85 +748,76 @@ class HostGuestRestraints(object):
 
         """
         # dump restraint file for later use in analysis
-        restraint_list = self._static_restraints + self._conformational_restraints
+        restraint_list = self._static_restraints.copy()
 
-        if (
-            self._protocol == "a"
-            or self._protocol == "p"
-            or self._protocol == "a-p"
-            or self._protocol == "a-p-r"
-        ):
-            restraint_list += self._guest_restraints
+        if self._conformational_restraints:
+            restraint_list += self._conformational_restraints.copy()
+
+        if self._guest_restraints:
+            restraint_list += self._guest_restraints.copy()
 
         save_restraints(restraint_list=restraint_list, filepath=json_file)
 
-        # Create folders and write to json files
-        self._window_list = create_window_list(self._conformational_restraints)
+        # Generate list and create APR windows
+        if self._conformational_restraints and self._guest_restraints or \
+                self._conformational_restraints and not self._guest_restraints:
+            self._window_list = create_window_list(self._conformational_restraints)
+
+        elif self._guest_restraints and not self._conformational_restraints:
+            self._window_list = create_window_list(self._guest_restraints)
+
+        else:
+            raise Exception('No APR windows will be created because both guest '
+                            'and host conformational restraints are not defined')
+
+        self._dump_apr_windows()
         self._create_folders(clean)
-        self._write_apr_windows()
 
-        # Write AMBER NMR restraint file
-        if restr_type.lower() == "amber":
-            for window in self._window_list:
-                with open(os.path.join("windows", window, "disang.rest"), "w") as file:
-                    if window[0] == "a":
-                        restraints = (
-                            self._static_restraints
-                            + self._guest_restraints
-                            + self._conformational_restraints
-                            + self._guest_wall_restraints
-                        )
-                    if window[0] == "p":
-                        restraints = (
-                            self._static_restraints
-                            + self._guest_restraints
-                            + self._conformational_restraints
-                        )
-                    if window[0] == "r" and self._protocol == "a-p-r":
-                        restraints = (
-                            self._static_restraints
-                            + self._guest_restraints
-                            + self._conformational_restraints
-                        )
-                    if window[0] == "r" and self._protocol == "r":
-                        restraints = (
-                            self._static_restraints + self._conformational_restraints
-                        )
+        # Write restraints to file
+        restraint_file = "disang.rest"
+        list_type = "tuple"
+        if restr_type.lower() == "plumed":
+            restraint_file = "plumed.dat"
+            list_type = "dict"
 
+        for window in self._window_list:
+            with open(os.path.join("windows", window, restraint_file), "w") as file:
+                if window[0] == "a":
+                    restraints = parse_restraints(
+                        static=self._static_restraints,
+                        guest=self._guest_restraints,
+                        host_conf=self._conformational_restraints,
+                        wall=self._guest_wall_restraints,
+                        list_type=list_type,
+                    )
+                if window[0] == "p":
+                    restraints = parse_restraints(
+                        static=self._static_restraints,
+                        guest=self._guest_restraints,
+                        host_conf=self._conformational_restraints,
+                        list_type=list_type,
+                    )
+                if window[0] == "r" and self._protocol == "a-p-r":
+                    restraints = parse_restraints(
+                        static=self._static_restraints,
+                        guest=self._guest_restraints,
+                        host_conf=self._conformational_restraints,
+                        list_type=list_type,
+                    )
+                if window[0] == "r" and self._protocol == "r":
+                    restraints = parse_restraints(
+                        static=self._static_restraints,
+                        host_conf=self._conformational_restraints,
+                        list_type=list_type,
+                    )
+
+                if restr_type.lower() == "amber":
                     for restraint in restraints:
                         string = amber_restraint_line(restraint, window)
                         if string is not None:
                             file.write(string)
 
-        # Write Plumed colvar file
-        elif restr_type.lower() == "plumed":
-            for window in self._window_list:
-                with open(os.path.join("windows", window, "plumed.dat"), "w") as file:
-                    if window[0] == "a":
-                        restraints = {
-                            "static": self._static_restraints,
-                            "guest": self._guest_restraints,
-                            "host": self._conformational_restraints,
-                            "wall": self._guest_wall_restraints,
-                        }
-                    if window[0] == "p":
-                        restraints = {
-                            "static": self._static_restraints,
-                            "guest": self._guest_restraints,
-                            "host": self._conformational_restraints,
-                        }
-                    if window[0] == "r" and self._protocol == "a-p-r":
-                        restraints = {
-                            "static": self._static_restraints,
-                            "guest": self._guest_restraints,
-                            "host": self._conformational_restraints,
-                        }
-                    if window[0] == "r" and self._protocol == "r":
-                        restraints = {
-                            "static": self._static_restraints,
-                            "host": self._conformational_restraints,
-                        }
-
+                elif restr_type.lower() == "plumed":
                     plumed_colvar_file(file, restraints, window, legacy_k=True)
 
                     if ref_from_structure:
