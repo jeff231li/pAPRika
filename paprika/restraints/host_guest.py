@@ -663,11 +663,12 @@ class HostGuestRestraints(object):
 
         self._dummy_atoms = extract_dummy_atoms(self._structure, serial=serial)
 
-    def translate_guest_molecule(self):
+    def dump_vacuum_structure(self):
         """
-        Translate the guest molecule as defined by the pull windows
+        Method to copy vacuum structure to each folder ready for solvation with tleap. The
+        structures for the pull phase will have the guest molecule translated according to
+        the specified pull distances.
         """
-        pull_window = os.path.join("windows", self.get_last_pull_window())
 
         for window in self._window_list:
             sub_folder = os.path.join("windows", window)
@@ -704,12 +705,20 @@ class HostGuestRestraints(object):
                 )
 
             elif window[0] == "r":
+                if self._protocol == "r":
+                    prmtop = self._structure.name
+                    inpcrd = self._structure.name.replace("prmtop", "rst7")
+                else:
+                    pull_window = os.path.join("windows", self.get_last_pull_window())
+                    prmtop = os.path.join(pull_window, f"{self._base_name}.prmtop")
+                    inpcrd = os.path.join(pull_window, f"{self._base_name}.rst7")
+
                 shutil.copy(
-                    os.path.join(pull_window, f"{self._base_name}.prmtop"),
+                    prmtop,
                     os.path.join(sub_folder, f"{self._base_name}.prmtop"),
                 )
                 shutil.copy(
-                    os.path.join(pull_window, f"{self._base_name}.rst7"),
+                    inpcrd,
                     os.path.join(sub_folder, f"{self._base_name}.rst7"),
                 )
 
