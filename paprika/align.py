@@ -192,3 +192,16 @@ def offset_structure(structure, offset):
     structure.coordinates = offset_coords
     logger.info("Added offset of {} to atomic coordinates...".format(offset))
     return structure
+
+
+def move_to_origin(structure, mask):
+    # Get masses of atoms
+    masses = [atom.mass for atom in structure[mask].atoms]
+
+    # Shift COM to origin
+    com = pmd.geometry.center_of_mass(
+        structure[mask].coordinates, np.asarray(masses)
+    )
+    structure.coordinates -= com
+
+    return structure
