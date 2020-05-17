@@ -747,17 +747,12 @@ class System(object):
 
         structure.save(prmtop, overwrite=True)
 
-    def add_dummy_to_plumed(self, serial=True):
+    def add_dummy_to_plumed(self):
         """
         Add dummy atom restraints to the plumed.dat file based on the
         structure created by tleap. This is required because the dummy
         atom restraints require absolute coordinates (i.e. lab frame of
         reference).
-
-        Parameters
-        ----------
-        serial : bool
-            If true then atom index will start with 1 else 0
 
         """
         # Load structure that was created by tleap
@@ -766,20 +761,7 @@ class System(object):
             os.path.join(self.output_path, self.output_prefix + ".rst7"),
         )
 
-        # Extract dummy atoms
-        from paprika.utils import extract_dummy_atoms
-
-        dummy_atoms = extract_dummy_atoms(structure, serial)
-
         # Write dummy atom collective variables to 'plumed.dat'
-        from paprika.restraints.plumed import write_dummy_to_plumed
+        from paprika.restraints.plumed import add_dummy_to_plumed
 
-        plumed_file = os.path.join(self.output_path, "plumed.dat")
-
-        if os.path.isfile(plumed_file):
-            with open(plumed_file, "a") as file:
-                write_dummy_to_plumed(file, dummy_atoms)
-        else:
-            raise Exception(
-                "ERROR: 'plumed.dat' file does not exists, please check your setup script"
-            )
+        add_dummy_to_plumed(structure, file_path=self.output_path, plumed='plumed.dat')

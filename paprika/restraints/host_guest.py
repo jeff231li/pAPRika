@@ -665,11 +665,17 @@ class HostGuestRestraints(object):
 
         self._dummy_atoms = extract_dummy_atoms(self._structure, serial=serial)
 
-    def dump_vacuum_structure(self):
+    def dump_vacuum_structure(self, add_dummy_to_plumed=False):
         """
         Method to copy vacuum structure to each folder ready for solvation with tleap. The
         structures for the pull phase will have the guest molecule translated according to
         the specified pull distances.
+
+        Parameters
+        ----------
+        add_dummy_to_plumed : bool
+            Append plumed.dat file with dummy atom restraints?
+
         """
 
         for window in self._window_list:
@@ -724,6 +730,18 @@ class HostGuestRestraints(object):
                     inpcrd,
                     os.path.join(sub_folder, f"{self._base_name}.rst7"),
                 )
+
+            # Add dummy atom restraints to plumed.dat
+            if add_dummy_to_plumed:
+                structure = pmd.load_file(
+                        os.path.join(sub_folder, f"{self._base_name}.prmtop"),
+                        os.path.join(sub_folder, f"{self._base_name}.rst7")
+                )
+
+                # Append to file
+                from paprika.restraints.plumed import add_dummy_to_plumed
+
+                add_dummy_to_plumed(structure, file_path=sub_folder, plumed='plumed.dat')
 
     def dump_restraint_files(
         self,

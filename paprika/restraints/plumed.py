@@ -1,3 +1,4 @@
+import os
 import logging
 
 from paprika.restraints.utils import parse_window
@@ -144,7 +145,7 @@ def restraint_to_colvar(restraints, phase, window, legacy_k=True):
     return colvar
 
 
-def write_colvar_to_plumed(file, colvar, block):
+def write_colvar_to_plumed(file, colvar, label):
     """
     Write collective variable and restraints to file
 
@@ -154,7 +155,7 @@ def write_colvar_to_plumed(file, colvar, block):
         The file object handle to save the plumed file.
     colvar : dict
         Dictionary containing information about the collective variable.
-    block : str
+    label : str
         Restraint type for naming purposes.
 
 
@@ -175,7 +176,7 @@ def write_colvar_to_plumed(file, colvar, block):
     LABEL=static
 
     """
-    file.write(f"# {block} restraints\n")
+    file.write(f"# {label} restraints\n")
     arg = ""
     at = ""
     kappa = ""
@@ -195,12 +196,12 @@ def write_colvar_to_plumed(file, colvar, block):
                 f"{colvar['atoms'][ndx][2]},{colvar['atoms'][ndx][3]}"
             )
 
-        file.write(f"{block[0]}_{ndx + 1}: {colvar['type'][ndx]} ATOMS={atoms} NOPBC\n")
-        arg += f"{block[0]}_{ndx + 1},"
+        file.write(f"{label[0]}_{ndx + 1}: {colvar['type'][ndx]} ATOMS={atoms} NOPBC\n")
+        arg += f"{label[0]}_{ndx + 1},"
         at += f"{colvar['AT'][ndx]:0.4f},"
         kappa += f"{colvar['KAPPA'][ndx] * colvar['factor']:0.2f},"
 
-    if block == "wall":
+    if label == "wall":
         bias = "UPPER_WALLS"
     else:
         bias = "RESTRAINT"
@@ -209,7 +210,7 @@ def write_colvar_to_plumed(file, colvar, block):
     file.write(f"ARG={arg}\n")
     file.write(f"AT={at}\n")
     file.write(f"KAPPA={kappa}\n")
-    file.write(f"LABEL={block}\n")
+    file.write(f"LABEL={label}\n")
     file.write(f"... {bias}\n")
 
 
@@ -276,3 +277,21 @@ def write_dummy_to_plumed(file, dummy_atoms, kpos=100.0):
     file.write(f"KAPPA={kappa}\n")
     file.write(f"LABEL=dummy\n")
     file.write(f"... RESTRAINT\n")
+
+
+def add_dummy_to_plumed(structure, file_path='./', plumed='plumed.dat'):
+    # Extract dummy atoms
+    from paprika.utils import extract_dummy_atoms
+
+    dummy_atoms = extract_dummy_atoms(structure, serial=True)
+
+    # Write dummy atom info to 'plumed.dat'
+    plumed_file = os.path.join(file_path, plumed)
+
+    if os.path.isfile(plumed_file):
+        with open(plumed_file, "a") as file:
+            write_dummy_to_plumed(file, dummy_atoms)
+    else:
+        raise Exception(
+            f"ERROR: '{plumed}' file does not exists, please check your setup script"
+        )
