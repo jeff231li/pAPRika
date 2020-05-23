@@ -8,8 +8,6 @@ import parmed as pmd
 
 from paprika.io import NumpyEncoder, save_restraints
 from paprika.restraints import DAT_restraint, static_DAT_restraint
-from paprika.restraints.amber import amber_restraint_line
-from paprika.restraints.plumed import plumed_colvar_file, write_dummy_to_plumed
 from paprika.restraints.restraints import create_window_list
 from paprika.restraints.utils import parse_restraints
 
@@ -758,7 +756,7 @@ class HostGuestRestraints(object):
         json_file : str
             filename for pAPRika restraint file (.json)
         restr_type : str
-            restraint format - Amber NMR or Plumed
+            restraint format - Amber NMR, Plumed or Colvar module
         ref_from_structure : bool
             take the reference position of dummy atoms from current structure
         clean : bool
@@ -797,6 +795,9 @@ class HostGuestRestraints(object):
         if restr_type.lower() == "plumed":
             restraint_file = "plumed.dat"
             list_type = "dict"
+        elif restr_type.lower() == "colvar":
+            restraint_file = "colvars.tcl"
+            list_type = "dict"
 
         for window in self._window_list:
             with open(os.path.join("windows", window, restraint_file), "w") as file:
@@ -829,15 +830,27 @@ class HostGuestRestraints(object):
                         list_type=list_type,
                     )
 
+                # Write restraint file
                 if restr_type.lower() == "amber":
+                    from paprika.restraints.amber import amber_restraint_line
+
                     for restraint in restraints:
                         string = amber_restraint_line(restraint, window)
                         if string is not None:
                             file.write(string)
 
                 elif restr_type.lower() == "plumed":
+                    from paprika.restraints.plumed import plumed_colvar_file
+
                     plumed_colvar_file(file, restraints, window, legacy_k=True)
 
                     if ref_from_structure:
+                        from paprika.restraints.plumed import write_dummy_to_plumed
+
                         self._fetch_dummy_atoms(serial=True)
                         write_dummy_to_plumed(file, self._dummy_atoms)
+
+                elif restr_type.lower() == "colvar":
+                    from paprika.restraints.colvar import colvar_module_file
+
+                    colvar_module_file(file, restraints, window, legacy_k=True)

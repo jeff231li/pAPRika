@@ -1,7 +1,7 @@
 import os
 import logging
 
-from paprika.restraints.utils import parse_window
+from paprika.restraints.utils import parse_window, restraint_to_colvar
 
 logger = logging.getLogger(__name__)
 
@@ -48,101 +48,20 @@ def plumed_colvar_file(file, restraints, window, legacy_k=True):
     file.write("UNITS LENGTH=A ENERGY=kcal/mol TIME=ns\n")
 
     if "static" in restraints.keys():
-        colvar = restraint_to_colvar(restraints["static"], phase, window, legacy_k)
+        colvar = restraint_to_colvar(restraints["static"], phase, window, radians=True, legacy_k=legacy_k)
         write_colvar_to_plumed(file, colvar, "static")
 
     if "host" in restraints.keys():
-        colvar = restraint_to_colvar(restraints["host"], phase, window, legacy_k)
+        colvar = restraint_to_colvar(restraints["host"], phase, window, radians=True, legacy_k=legacy_k)
         write_colvar_to_plumed(file, colvar, "host")
 
     if "guest" in restraints.keys():
-        colvar = restraint_to_colvar(restraints["guest"], phase, window, legacy_k)
+        colvar = restraint_to_colvar(restraints["guest"], phase, window, radians=True, legacy_k=legacy_k)
         write_colvar_to_plumed(file, colvar, "guest")
 
     if "wall" in restraints.keys():
-        colvar = restraint_to_colvar(restraints["wall"], phase, window, legacy_k)
+        colvar = restraint_to_colvar(restraints["wall"], phase, window, radians=True, legacy_k=legacy_k)
         write_colvar_to_plumed(file, colvar, "wall")
-
-
-def restraint_to_colvar(restraints, phase, window, legacy_k=True):
-    """
-    Extract information about restraints and store in a python dictionary
-
-    Parameters
-    ----------
-    restraints : list
-        List of DAT_restraint() object.
-    phase : str
-        Which phase of the simulation ('attach', 'pull', 'release').
-    window : int
-        Current window index
-    legacy_k : bool
-        Are the restraints based on legacy force constants? Old MD codes
-        like AMBER and CHARMM requires the user to half the force constant
-        beforehand. New MD codes like GROMACS and NAMD requires the user
-        to set the force constant without the 1/2 factor.
-
-    Returns
-    -------
-    colvar : dict
-        A dictionary containing the information of a particular restraint block.
-
-    """
-    factor = 1.0
-    if legacy_k:
-        factor = 2.0
-
-    colvar = {
-        "atoms": [],
-        "AT": [],
-        "KAPPA": [],
-        "type": [],
-        "factor": factor,
-        "ncolvar": len(restraints),
-    }
-    for restraint in restraints:
-        atoms = []
-        angle = False
-
-        # Atom indices
-        if restraint.index1:
-            atoms.append(restraint.index1[0])
-        else:
-            raise Exception("There must be at least two atoms in a restraint.")
-
-        if restraint.index2:
-            atoms.append(restraint.index2[0])
-        else:
-            raise Exception("There must be at least two atoms in a restraint.")
-
-        if restraint.index3:
-            angle = True
-            atoms.append(restraint.index3[0])
-
-        if restraint.index4:
-            angle = True
-            atoms.append(restraint.index4[0])
-
-        # Type of collective variable
-        if len(atoms) == 2:
-            colvar["type"].append("DISTANCE")
-        elif len(atoms) == 3:
-            colvar["type"].append("ANGLE")
-        elif len(atoms) == 4:
-            colvar["type"].append("TORSION")
-
-        # Target and force constant
-        target = restraint.phase[phase]["targets"][window]
-        force_constant = restraint.phase[phase]["force_constants"][window]
-        if angle:
-            target *= PI / 180.0
-
-        # Store info to dict
-        colvar["atoms"].append(atoms)
-        colvar["AT"].append(target)
-        colvar["KAPPA"].append(force_constant)
-
-    return colvar
 
 
 def write_colvar_to_plumed(file, colvar, label):
@@ -185,11 +104,13 @@ def write_colvar_to_plumed(file, colvar, label):
         atoms = f""
         if colvar["type"][ndx] == "DISTANCE":
             atoms = f"{colvar['atoms'][ndx][0]},{colvar['atoms'][ndx][1]}"
+
         elif colvar["type"][ndx] == "ANGLE":
             atoms = (
                 f"{colvar['atoms'][ndx][0]},{colvar['atoms'][ndx][1]},"
                 f"{colvar['atoms'][ndx][2]}"
             )
+
         elif colvar["type"][ndx] == "TORSION":
             atoms = (
                 f"{colvar['atoms'][ndx][0]},{colvar['atoms'][ndx][1]},"
