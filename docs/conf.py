@@ -50,7 +50,7 @@ extensions = [
     'sphinx.ext.viewcode',
     'sphinx.ext.intersphinx',
     'nbsphinx',
-    'm2r'
+    'recommonmark',
 ]
 
 # Autodoc settings
