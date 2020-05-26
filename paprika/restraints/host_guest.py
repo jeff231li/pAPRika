@@ -54,6 +54,7 @@ class HostGuestRestraints(object):
         anchor_atoms,
         structure,
         windows=None,
+        output_prefix='.',
     ):
         self._guest_resname = guest_resname
         self._host_resname = host_resname
@@ -61,6 +62,7 @@ class HostGuestRestraints(object):
         self._anchor_atoms = anchor_atoms
         self._windows = None
         self._structure = structure
+        self._output_prefix = output_prefix
         self._apr_list = {
             "attach": {"fractions": [], "windows": []},
             "pull": {"fractions": [], "windows": []},
@@ -612,7 +614,7 @@ class HostGuestRestraints(object):
             if window[0] == "r":
                 self._apr_list["release"]["windows"].append(window)
 
-        with open("apr_windows.json", "w") as f:
+        with open(os.path.join(self._output_prefix, "apr_windows.json"), "w") as f:
             dumped = json.dumps(self._apr_list, cls=NumpyEncoder)
             f.write(dumped)
 
@@ -638,17 +640,18 @@ class HostGuestRestraints(object):
             delete current 'windows' folder?
 
         """
+        windows_folder = os.path.join(self._output_prefix, "windows")
         # Remove folders
         if clean:
-            if os.path.exists(f"windows"):
-                shutil.rmtree("windows")
-            os.makedirs("windows")
+            if os.path.exists(windows_folder):
+                shutil.rmtree(windows_folder)
+            os.makedirs(windows_folder)
 
         # Create window folders
         for window in self._window_list:
-            folder = os.path.join("windows", f"{window}")
-            if not os.path.exists(folder):
-                os.makedirs(folder)
+            sub_folder = os.path.join(windows_folder, f"{window}")
+            if not os.path.exists(sub_folder):
+                os.makedirs(sub_folder)
 
     def _fetch_dummy_atoms(self, serial=True):
         """
@@ -679,7 +682,7 @@ class HostGuestRestraints(object):
         """
 
         for window in self._window_list:
-            sub_folder = os.path.join("windows", window)
+            sub_folder = os.path.join(self._output_prefix, "windows", window)
 
             if window[0] == "a":
                 shutil.copy(
@@ -718,7 +721,7 @@ class HostGuestRestraints(object):
                     inpcrd = self._structure.name.replace("prmtop", "rst7")
 
                 else:
-                    pull_window = os.path.join("windows", self.get_last_pull_window())
+                    pull_window = os.path.join(sub_folder, "windows", self.get_last_pull_window())
                     prmtop = os.path.join(pull_window, f"{self._base_name}.prmtop")
                     inpcrd = os.path.join(pull_window, f"{self._base_name}.rst7")
 
@@ -755,6 +758,8 @@ class HostGuestRestraints(object):
 
         Parameters
         ----------
+        output_prefix : str
+            output folder for dumping restraint files
         json_file : str
             filename for pAPRika restraint file (.json)
         restr_type : str
@@ -774,7 +779,7 @@ class HostGuestRestraints(object):
         if self._guest_restraints:
             restraint_list += self._guest_restraints.copy()
 
-        save_restraints(restraint_list=restraint_list, filepath=json_file)
+        save_restraints(restraint_list=restraint_list, filepath=os.path.join(self._output_prefix, json_file))
 
         # Generate list and create APR windows
         if self._conformational_restraints and self._guest_restraints or \
@@ -799,7 +804,8 @@ class HostGuestRestraints(object):
             list_type = "dict"
 
         for window in self._window_list:
-            with open(os.path.join("windows", window, restraint_file), "w") as file:
+            sub_folder = os.path.join(self._output_prefix, "windows", window)
+            with open(os.path.join(sub_folder, restraint_file), "w") as file:
                 if window[0] == "a":
                     restraints = parse_restraints(
                         static=self._static_restraints,
