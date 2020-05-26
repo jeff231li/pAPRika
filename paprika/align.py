@@ -194,180 +194,205 @@ def offset_structure(structure, offset):
     return structure
 
 
-def align_to_axis(structure, mask=None, v_axis=None):
-    """
-    Aligns the 1st principal axis of a system to a given axis. This method
-    mimics the method given in the link:
-    https://www.ks.uiuc.edu/Research/vmd/script_library/scripts/orient/
-    but does not align the 2nd or 3rd principal axes (i.e. one-step alignment only).
+def translate_to_origin(structure, weight="mass", resname=None, atom_mask=None, dim_mask=None):
+    """Translate a structure to the origin based on the center of 
+       mass of the whole system or of a particular choice of atom(s).
 
     Parameters
     ----------
     structure : str or parmed.Structure
-        Structure we want to align.
-    mask : str
-        A mask that will select a particular molecule to use as the choice
-        for calculating the moment of inertia.
-    v_axis: list
-        The axis vector to align the system to.
+        Molecular structure containing coordinates.
+    weight : str
+        Calculate the center based on atomic masses ('mass' default) or geometric center ('geo')
+    resname : str
+        Option to translate only a specific molecule from structure.
+    atom_mask : str
+        Selection of atom(s) if a particular subset is preferred to estimate the center.
+    dim_mask : list
+        A mask that will filter the dimensions to which the translation will be applied (default is
+        [1,1,1]). For example, dim_mask=[0,0,1] will translate the structure so that the z-component
+        of the center is at the origin.
 
     Returns
     -------
     structure : parmed.Structure
-        aligned structure
+        A molecular structure with the coordinates translated to the origin.
 
     """
+    # Check if weight variable is properly chosen
+    if weight not in ["mass", "geo"]:
+        raise KeyError('Error: "weight" must either be "mass" or "geo"')
+
+    # Dimension mask
+    if dim_mask is None:
+        dim_mask = [1, 1, 1]
+    elif len(dim_mask) != 3:
+        raise KeyError(
+            'Error: "dim_mask" must be a list with 3 elements, e.g. [1,1,1]'
+        )
+    dim_mask = np.array(dim_mask)
+
+    # Atom coordinates and masses
+    if atom_mask is None and resname is None:
+        coordinates = structure.coordinates
+        masses = np.asarray([atom.mass for atom in structure.atoms])
+    elif atom_mask is None and resname:
+        coordinates = structure[f':{resname}'].coordinates
+        masses = np.asarray([atom.mass for atom in structure[f':{resname}'].atoms])
+    else:
+        coordinates = structure[atom_mask].coordinates
+        masses = np.asarray([atom.mass for atom in structure[atom_mask].atoms])
+
+    # Convert weight if geometric center
+    if weight == "geo":
+        masses[:] = 1.0
+
+    # Center of mass/geometry
+    centroid = pmd.geometry.center_of_mass(coordinates, masses)
+
+    # Translate coordinates
+    aligned_coords = np.empty_like(structure.coordinates)
+    for atom in range(len(structure.atoms)):
+        if resname:
+            if structure[atom].residue.name == resname:
+                aligned_coords[atom] = structure.coordinates[atom] - centroid * dim_mask
+            else:
+                aligned_coords[atom] = structure.coordinates[atom]
+        else:
+            aligned_coords[atom] = structure.coordinates[atom] - centroid * dim_mask
+    structure.coordinates = aligned_coords
+
+    return structure
+
+
+def rotate_structure(structure, resname=None, axis='x', angle=0.0, degrees=True):
+    """
+    """
+    # Convert to radians
+    if degrees:
+        theta = angle*np.pi/180.0
+
+    # Rotation matrix
+    if axis == 'x':
+        rotation_matrix = np.array([
+            [1, 0, 0], [0, np.cos(theta), -np.sin(theta)], [0, np.sin(theta), np.cos(theta)]
+        ])
+    elif axis == 'y':
+        rotation_matrix = np.array([
+            [np.cos(theta), 0, np.sin(theta)], [0, 1, 0], [-np.sin(theta), 0, np.cos(theta)]
+        ])
+    elif axis == 'z':
+        rotation_matrix = np.array([
+            [np.cos(theta), -np.sin(theta), 0], [np.sin(theta), np.cos(theta), 0], [0, 0, 1]
+        ])
+
+    # Apply rotation matrix to coordinates
+    aligned_coords = np.empty_like(structure.coordinates)
+    for atom in range(len(structure.atoms)):
+        if resname:
+            if structure[atom].residue.name == resname:
+                aligned_coords[atom] = np.dot(rotation_matrix, structure.coordinates[atom])
+            else:
+                aligned_coords[atom] = structure.coordinates[atom]
+        else:
+            aligned_coords[atom] = np.dot(rotation_matrix, structure.coordinates[atom])
+    structure.coordinates = aligned_coords
+
+    return structure
+
+
+def align_principal_axes(structure, atom_mask=None, princ_axis=None, v_axis=None):
+    """Aligns the a chosen principal axis of a system to a specified axis. 
+       This function is based on the method given in the link:
+
+        * https://www.ks.uiuc.edu/Research/vmd/script_library/scripts/orient/
+
+    Parameters
+    ----------
+    structure : parmed.Structure
+        Molecular structure containing coordinates.
+    atom_mask : str
+        A mask that filter specific atoms for calculating the moment of inertia.
+    princ_axis : int
+        Which principal axis to align? (choice: 1, 2 or 3, default: 1).
+    v_axis: list
+        The axis vector to align the system to (default: [0, 0, 1]).
+
+    Returns
+    -------
+    structure : parmed.Structure
+        A molecular structure with a principal axis aligned to a vector.
+
+    Examples
+    --------
+    The commands below mimics the example given in the link above for VMD.
+
+        >>> structure = align_principal_axes(structure, princ_axis=0, v_axis=[0,0,1])
+        >>> structure = align_principal_axes(structure, princ_axis=1, v_axis=[0,1,0])
+
+    """
+    # Check princ_axis
+    if princ_axis is None:
+        princ_axis = 1
+    elif princ_axis not in [0, 1, 2]:
+        raise SystemExit(
+            'Error: "princ_axis" can only be an integer value of 0, 1 or 2.'
+        )
+
     # Axis vector for alignment
     if v_axis is None:
         v_axis = [0, 0, 1]
+    elif len(v_axis) != 3:
+        raise SystemExit('Error: "v_axis" must be a list with 3 elements, e.g. [0,0,1]')
+    v_axis = np.array(v_axis)
 
-    # Load structure if not already a parmed object
-    if isinstance(structure, str):
-        structure = pmd.load_file(f'{structure}.prmtop',
-                                  f'{structure}.rst7',
-                                  structure=True)
+    # Get coordinates and masses
+    coordinates = structure.coordinates
+    masses = np.asarray([atom.mass for atom in structure.atoms])
+    if atom_mask:
+        coordinates = structure[atom_mask].coordinates
+        masses = np.asarray([atom.mass for atom in structure[atom_mask].atoms])
 
-    # Reference structure for calculating the moment of inertia
-    structure_ref = structure
-    if mask:
-        structure_ref = structure[mask]
-
-    # Shift system to origin
-    structure, masses = move_com_to_origin(structure, mask, return_mass=True)
+    # Calculate center of mass
+    centroid = pmd.geometry.center_of_mass(coordinates, masses)
 
     # Construct Inertia tensor
     Ixx = Ixy = Ixz = Iyy = Iyz = Izz = 0
-    for xyz, mass in zip(structure_ref.coordinates, masses):
+    for xyz, mass in zip(coordinates, masses):
+        xyz -= centroid
         Ixx += mass * (xyz[1] * xyz[1] + xyz[2] * xyz[2])
         Ixy -= mass * (xyz[0] * xyz[1])
         Ixz -= mass * (xyz[0] * xyz[2])
         Iyy += mass * (xyz[0] * xyz[0] + xyz[2] * xyz[2])
         Iyz -= mass * (xyz[1] * xyz[2])
         Izz += mass * (xyz[0] * xyz[0] + xyz[1] * xyz[1])
-    inertia = np.array([[Ixx, Ixy, Ixz],
-                        [Ixy, Iyy, Iyz],
-                        [Ixz, Iyz, Izz]])
 
-    # Eigen-decomposition
+    inertia = np.array([[Ixx, Ixy, Ixz], [Ixy, Iyy, Iyz], [Ixz, Iyz, Izz]])
+
+    # Principal axis
     evals, evecs = np.linalg.eig(inertia)
-    sort_indices = [0, 1, 2]
-    a1 = evecs[:, sort_indices[0]]  # 1st principal axis
-    a2 = evecs[:, sort_indices[1]]  # 2nd principal axis
-    a3 = evecs[:, sort_indices[2]]  # 3rd principal axis
+    evecs = evecs[:, evals.argsort()]  # <-- Numpy does not sort the vectors properly
+    p_axis = evecs[:, princ_axis]
 
-    # Linear algebra stuff
-    v_axis = np.array(v_axis)
-    x = np.cross(a1, v_axis) / np.linalg.norm(np.cross(a1, v_axis))
-    theta = np.arccos(np.dot(a1, v_axis) / (np.linalg.norm(a1) * np.linalg.norm(v_axis)))
+    # Calculate Rotation matrix
+    x = np.cross(p_axis, v_axis) / np.linalg.norm(np.cross(p_axis, v_axis))
+    theta = np.arccos(
+        np.dot(p_axis, v_axis) / (np.linalg.norm(p_axis) * np.linalg.norm(v_axis))
+    )
     A = np.array(
-        [[0, -1.0 * x[2], x[1]],
-         [x[2], 0, -1.0 * x[0]],
-         [-1.0 * x[1], x[0], 0]]
+        [[0, -1.0 * x[2], x[1]], [x[2], 0, -1.0 * x[0]], [-1.0 * x[1], x[0], 0]]
     )
     rotation_matrix = (
-            np.identity(3)
-            + np.dot(np.sin(theta), A)
-            + np.dot((1.0 - np.cos(theta)), np.dot(A, A))
+        np.identity(3)
+        + np.dot(np.sin(theta), A)
+        + np.dot((1.0 - np.cos(theta)), np.dot(A, A))
     )
 
-    # Align the 1st principal axis to specified axis
+    # Align the principal axis to specified axis
     aligned_coords = np.empty_like(structure.coordinates)
     for atom in range(len(structure.atoms)):
         aligned_coords[atom] = structure.coordinates[atom]
         aligned_coords[atom] = np.dot(rotation_matrix, aligned_coords[atom])
     structure.coordinates = aligned_coords
-
-    return structure
-
-
-def move_com_to_origin(structure, mask=None, return_mass=False):
-    """
-    Translate the center of mass of a system to the origin.
-
-    Parameters
-    ----------
-    structure : str or parmed.Structure
-        Structure we want to translate.
-    mask : str
-        A mask that will select a particular molecule to use as the choice
-        for calculating the center of mass.
-    return_mass : bool
-        Return the masses of the structure as well?
-
-    Returns
-    -------
-    structure : parmed.Structure
-        Translated structure.
-
-    """
-    structure_ref = structure
-    if mask:
-        structure_ref = structure[mask]
-
-    # Get masses of atoms
-    masses = [atom.mass for atom in structure_ref.atoms]
-
-    # Shift COM to origin
-    com = pmd.geometry.center_of_mass(
-        structure_ref.coordinates, np.asarray(masses)
-    )
-    structure.coordinates -= com
-
-    if return_mass:
-        return structure, masses
-
-    return structure
-
-
-def move_anchor_to_origin(structure, center_atom, xyz_mask=None, save=False, filename=None):
-    """
-    Translate a system based on a single anchoring atom to the origin
-
-    Parameters
-    ----------
-    structure : str or parmed.Structure
-        Structure we want to translate.
-    xyz_mask : str
-        A mask that will filter out the dimension of the coordinate.
-    save : bool
-        Save the translated structure?
-    filename : str
-        Filename to save the structure after translating
-
-    Returns
-    -------
-    structure : parmed.Structure
-        Translated structure.
-
-    """
-    center_coordinates = structure[center_atom].coordinates
-    center_masses = [atom.mass for atom in structure[center_atom].atoms]
-    center_com = pmd.geometry.center_of_mass(
-        np.asarray(center_coordinates), np.asarray(center_masses)
-    )
-
-    logger.info(
-        "Centering system based on moving atom {} to the origin...".format(center_atom)
-    )
-
-    if xyz_mask is None:
-        xyz_mask = [1, 1, 1]
-    xyz_mask = np.array(xyz_mask)
-
-    aligned_coords = np.empty_like(structure.coordinates)
-    for atom in range(len(structure.atoms)):
-        aligned_coords[atom] = structure.coordinates[atom] + -1.0 * center_com * xyz_mask
-    structure.coordinates = aligned_coords
-
-    if save:
-        if not filename:
-            logger.warning(
-                "Unable to save aligned coordinates (no filename provided)..."
-            )
-        else:
-            logger.info("Saved aligned coordinates to {}".format(filename))
-            # This seems to write out HETATM in place of ATOM
-            # We should offer the option of writing a mol2 file, directly.
-            structure.write_pdb(filename)
 
     return structure
