@@ -71,7 +71,8 @@ class HostGuestRestraints(object):
         self._window_list = []
         self._static_restraints = []
         self._conformational_restraints = []
-        self._guest_wall_restraints = []
+        self._wall_restraints = []
+        self._symmetry_restraints = []
         self._guest_restraints = []
         self._dummy_atoms = {"DM1": {}, "DM2": {}, "DM3": {}}
         self._continuous_apr = None
@@ -360,7 +361,8 @@ class HostGuestRestraints(object):
             The force constant for angle restraints (kcal/mol/rad^2).
 
         """
-        self._guest_wall_restraints = []
+        self._wall_restraints = []
+        self._symmetry_restraints = []
         host_residues = len(
             self._structure[":{}".format(self._host_resname.upper())].residues
         )
@@ -391,7 +393,7 @@ class HostGuestRestraints(object):
                 this.attach["num_windows"] = self._windows[0]
 
                 this.initialize()
-                self._guest_wall_restraints.append(this)
+                self._wall_restraints.append(this)
 
         # Add a single angle restraint!
         guest_wall_restraint_atoms = [
@@ -418,9 +420,9 @@ class HostGuestRestraints(object):
         this.attach["num_windows"] = self._windows[0]
 
         this.initialize()
-        self._guest_wall_restraints.append(this)
+        self._symmetry_restraints.append(this)
 
-        print(f"\t* There are {len(self._guest_wall_restraints)} guest wall restraints")
+        print(f"\t* There are {len(self._wall_restraints)} guest wall restraints")
 
     def guest_wall(
         self, template,
@@ -444,7 +446,8 @@ class HostGuestRestraints(object):
             }
 
         """
-        self._guest_wall_restraints = []
+        self._wall_restraints = []
+        self._symmetry_restraints = []
 
         for atoms, target, force_constant in zip(
             template["atoms"], template["target"], template["k"]
@@ -478,9 +481,13 @@ class HostGuestRestraints(object):
             this.attach["num_windows"] = self._windows[0]
 
             this.initialize()
-            self._guest_wall_restraints.append(this)
 
-        print(f"\t* There are {len(self._guest_wall_restraints)} guest wall restraints")
+            if len(atoms) == 2:
+                self._wall_restraints.append(this)
+            elif len(atoms) == 3:
+                self._symmetry_restraints.append(this)
+
+        print(f"\t* There are {len(self._wall_restraints)} guest wall restraints")
 
     def guest(
         self, guest_atoms=None, guest_targets=None, distance_fc=5.0, angle_fc=100.0,
@@ -517,10 +524,15 @@ class HostGuestRestraints(object):
                     self._anchor_atoms["G2"],
                 ],
             ]
-        if guest_targets is None:
+        if guest_targets is None and self._protocol != "a":
             guest_targets = {
                 "initial": [self._apr_list["pull"]["fractions"][0], 180.0, 180.0],
                 "final": [self._apr_list["pull"]["fractions"][-1], 180.0, 180.0],
+            }
+        else:
+            guest_targets = {
+                "initial": [6.0, 180.0, 180.0],
+                "final": [6.0, 180.0, 180.0],
             }
 
         for index, atoms in enumerate(guest_atoms):
@@ -529,33 +541,24 @@ class HostGuestRestraints(object):
             this.continuous_apr = self._continuous_apr
             this.amber_index = True
             this.topology = self._structure
+
+            # Atoms
             this.mask1 = atoms[0]
             this.mask2 = atoms[1]
-
-            # Distance
-            if len(atoms) == 2:
-                this.attach["fc_final"] = distance_fc
-                this.release["fc_final"] = distance_fc
-
-            # Angles
-            elif len(atoms) == 3:
+            if len(atoms) == 3:
                 this.mask3 = atoms[2]
-                this.attach["fc_final"] = angle_fc
-                this.release["fc_final"] = angle_fc
-
-            # Torsion
             elif len(atoms) == 4:
                 this.mask4 = atoms[3]
-                this.attach["fc_final"] = angle_fc
-                this.release["fc_final"] = angle_fc
 
+            # APR protocol
             if (
                 self._protocol == "a"
                 or self._protocol == "a-p"
                 or self._protocol == "a-p-r"
             ):
-                this.attach["target"] = guest_targets["initial"][index]
                 this.attach["fraction_list"] = self._apr_list["attach"]["fractions"]
+                this.attach["target"] = guest_targets["initial"][index]
+                this.attach["fc_final"] = distance_fc if len(atoms) == 2 else angle_fc
 
             if (
                 self._protocol == "p"
@@ -566,9 +569,10 @@ class HostGuestRestraints(object):
                 this.pull["num_windows"] = self._windows[1]
 
             if self._protocol == "r" or self._protocol == "a-p-r":
-                this.release["target"] = guest_targets["final"][index]
                 # keep the guest restraints on during release.
                 this.release["fraction_list"] = [1.0] * self._windows[2]
+                this.release["target"] = guest_targets["final"][index]
+                this.release["fc_final"] = distance_fc if len(atoms) == 2 else angle_fc
 
             this.initialize()
             self._guest_restraints.append(this)
@@ -625,6 +629,7 @@ class HostGuestRestraints(object):
         return self._apr_list["pull"]["windows"][-1]
 
     def _calc_target_diff(self, window):
+
         return (
             self._guest_restraints[0].phase["pull"]["targets"][int(window)]
             - self._guest_restraints[0].pull["target_initial"]
@@ -693,6 +698,10 @@ class HostGuestRestraints(object):
                     self._structure.name.replace("prmtop", "rst7"),
                     os.path.join(sub_folder, f"{self._base_name}.rst7"),
                 )
+                shutil.copy(
+                    self._structure.name.replace("prmtop", "pdb"),
+                    os.path.join(sub_folder, f"{self._base_name}.pdb"),
+                )
 
             elif window[0] == "p":
                 structure = pmd.load_file(
@@ -714,16 +723,21 @@ class HostGuestRestraints(object):
                 structure.save(
                     os.path.join(sub_folder, f"{self._base_name}.rst7"), overwrite=True,
                 )
+                structure.save(
+                    os.path.join(sub_folder, f"{self._base_name}.pdb"), overwrite=True,
+                )
 
             elif window[0] == "r":
                 if self._protocol == "r":
                     prmtop = self._structure.name
                     inpcrd = self._structure.name.replace("prmtop", "rst7")
+                    inppdb = self._structure.name.replace("prmtop", "pdb")
 
                 else:
-                    pull_window = os.path.join(sub_folder, "windows", self.get_last_pull_window())
+                    pull_window = os.path.join(self._output_prefix, "windows", self.get_last_pull_window())
                     prmtop = os.path.join(pull_window, f"{self._base_name}.prmtop")
                     inpcrd = os.path.join(pull_window, f"{self._base_name}.rst7")
+                    inppdb = os.path.join(pull_window, f"{self._base_name}.pdb")
 
                 shutil.copy(
                     prmtop,
@@ -732,6 +746,10 @@ class HostGuestRestraints(object):
                 shutil.copy(
                     inpcrd,
                     os.path.join(sub_folder, f"{self._base_name}.rst7"),
+                )
+                shutil.copy(
+                    inpcrd,
+                    os.path.join(sub_folder, f"{self._base_name}.pdb"),
                 )
 
             # Add dummy atom restraints to plumed.dat
@@ -745,6 +763,64 @@ class HostGuestRestraints(object):
                 from paprika.restraints.plumed import add_dummy_to_plumed
 
                 add_dummy_to_plumed(structure, file_path=sub_folder, plumed='plumed.dat')
+
+    def dump_openmm_xml(self, nbMethod='PME', cutoff=9.0, output_xml="system.xml"):
+        from paprika.setup import apply_openmm_restraints
+        from simtk import unit
+        from simtk.openmm import CustomExternalForce, XmlSerializer
+        from simtk.openmm.app import AmberPrmtopFile, HBonds, NoCutoff, PME
+
+        if nbMethod == 'PME':
+            nonbondedMethod = PME
+        elif nbMethod == "NoCutoff":
+            nonbondedMethod = NoCutoff
+
+        for window in self._window_list:
+            sub_folder = os.path.join(self._output_prefix, "windows", window)
+
+            prmtop = AmberPrmtopFile(os.path.join(sub_folder, f"{self._base_name}.prmtop"))
+
+            system = prmtop.createSystem(
+                nonbondedMethod=nonbondedMethod,
+                nonbondedCutoff=cutoff * unit.angstrom,
+                constraints=HBonds,
+            )
+
+            # Add restraints
+            for atom in self._structure.atoms:
+                if atom.name == "DUM":
+                    positional_restraint = CustomExternalForce(
+                        "k * ((x-x0)^2 + (y-y0)^2 + (z-z0)^2)"
+                    )
+                    positional_restraint.addPerParticleParameter("k")
+                    positional_restraint.addPerParticleParameter("x0")
+                    positional_restraint.addPerParticleParameter("y0")
+                    positional_restraint.addPerParticleParameter("z0")
+
+                    k = 50.0 * unit.kilocalorie_per_mole / unit.angstrom**2
+                    x0 = 0.1 * atom.xx * unit.nanometers
+                    y0 = 0.1 * atom.xy * unit.nanometers
+                    z0 = 0.1 * atom.xz * unit.nanometers
+                    positional_restraint.addParticle(atom.idx, [k, x0, y0, z0])
+                    system.addForce(positional_restraint)
+                    positional_restraint.setForceGroup(15)
+
+            for restraint in self._static_restraints:
+                system = apply_openmm_restraints(system, restraint, window, ForceGroup=10)
+            for restraint in self._conformational_restraints:
+                system = apply_openmm_restraints(system, restraint, window, ForceGroup=11)
+            for restraint in self._guest_restraints:
+                system = apply_openmm_restraints(system, restraint, window, ForceGroup=12)
+            for restraint in self._symmetry_restraints:
+                system = apply_openmm_restraints(system, restraint, window, flat_bottom=True, ForceGroup=13)
+            for restraint in self._wall_restraints:
+                system = apply_openmm_restraints(system, restraint, window, flat_bottom=True, ForceGroup=14)
+
+            # Write XML file
+            system_xml = XmlSerializer.serialize(system)
+
+            with open(os.path.join(sub_folder, output_xml), "w") as file:
+                file.write(system_xml)
 
     def dump_restraint_files(
         self,
@@ -811,7 +887,7 @@ class HostGuestRestraints(object):
                         static=self._static_restraints,
                         guest=self._guest_restraints,
                         host_conf=self._conformational_restraints,
-                        wall=self._guest_wall_restraints,
+                        wall=self._wall_restraints,
                         list_type=list_type,
                     )
                 if window[0] == "p":
