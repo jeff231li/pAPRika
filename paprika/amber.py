@@ -134,35 +134,50 @@ class Simulation(object):
 
         The default dictionary keys and values are as follows:
 
-            - ``imin``       : 0
-            - ``ntx``        : 1
-            - ``irest``      : 0
-            - ``maxcyc``     : 0
-            - ``ncyc``       : 0
-            - ``dt``         : 0.002
-            - ``nstlim``     : 5000
-            - ``ntpr``       : 500
-            - ``ntwe``       : 500
-            - ``ntwr``       : 5000
-            - ``ntwx``       : 500
-            - ``ntxo``       : 1
-            - ``ioutfm``     : 1
-            - ``ntf``        : 2
-            - ``ntc``        : 2
-            - ``cut``        : 8
-            - ``igb``        : 0
-            - ``tempi``      : 298.15
-            - ``tempo``      : 298.15
-            - ``ntt``        : 3
-            - ``gamma_ln``   : 1.0
-            - ``ig``         : -1
-            - ``ntp``        : 1
-            - ``barostat``   : 2
-            - ``ntr``        : ``None``
+            - ``imin``          : 0
+            - ``ntx``           : 1
+            - ``irest``         : 0
+            - ``maxcyc``        : 0
+            - ``ncyc``          : 0
+            - ``dt``            : 0.002
+            - ``nstlim``        : 5000
+            - ``ntpr``          : 500
+            - ``ntwe``          : 500
+            - ``ntwr``          : 5000
+            - ``ntwx``          : 500
+            - ``ntxo``          : 1
+            - ``ioutfm``        : 1
+            - ``ntf``           : 2
+            - ``ntc``           : 2
+            - ``cut``           : 8
+            - ``igb``           : 0
+            - ``tempi``         : 298.15
+            - ``tempo``         : 298.15
+            - ``ntt``           : 3
+            - ``gamma_ln``      : 1.0
+            - ``ig``            : -1
+            - ``ntp``           : 1
+            - ``barostat``      : 2
+            - ``ntr``           : ``None``
             - ``restraint_wt``  : ``None``
             - ``restraintmask`` : ``None``
-            - ``nmropt``     : 1
-            - ``pencut``     : -1
+            - ``nmropt``        : 1
+            - ``pencut``        : -1
+            - ``icfe``          : ``None``
+            - ``clambda``       : ``None``
+            - ``klambda``       : ``None```
+            - ``tishake``       : ``None``
+            - ``timask1``       : ``None``
+            - ``timask2``       : ``None``
+            - ``ifsc``          : ``None``
+            - ``scalpha``       : ``None``
+            - ``scbeta``        : ``None``
+            - ``logdvdl``       : ``None``
+            - ``scmask1``       : ``None``
+            - ``scmask1``       : ``None``
+            - ``ifmbar``        : ``None``
+            - ``mbar_states``   : ``None``
+            - ``mbar_lambda``   : ``None``
 
         """
         return self._cntrl
@@ -258,6 +273,23 @@ class Simulation(object):
         self._cntrl["restraintmask"] = None
         self._cntrl["nmropt"] = 1
         self._cntrl["pencut"] = -1
+
+        # Alchemical calculation specific
+        self._cntrl["icfe"] = None
+        self._cntrl["clambda"] = None
+        self._cntrl["klambda"] = None
+        self._cntrl["tishake"] = None
+        self._cntrl["timask1"] = None
+        self._cntrl["timask2"] = None
+        self._cntrl["ifsc"] = None
+        self._cntrl["scalpha"] = None
+        self._cntrl["scbeta"] = None
+        self._cntrl["scmask1"] = None
+        self._cntrl["scmask1"] = None
+        self._cntrl["logdvdl"] = None
+        self._cntrl["ifmbar"] = None
+        self._cntrl["mbar_states"] = None
+        self._cntrl["mbar_lambda"] = None
 
         # Other input file sections
         self._ewald = None
