@@ -55,6 +55,7 @@ class HostGuestRestraints(object):
         structure,
         windows=None,
         output_prefix='.',
+        engine='amber',
     ):
         self._guest_resname = guest_resname
         self._host_resname = host_resname
@@ -63,6 +64,7 @@ class HostGuestRestraints(object):
         self._windows = None
         self._structure = structure
         self._output_prefix = output_prefix
+        self._engine = engine
         self._apr_list = {
             "attach": {"fractions": [], "windows": []},
             "pull": {"fractions": [], "windows": []},
@@ -177,7 +179,7 @@ class HostGuestRestraints(object):
                 num_window_list=self._windows,
                 ref_structure=self._structure,
                 force_constant=angle_fc if len(atoms) > 2 else distance_fc,
-                amber_index=True,
+                amber_index=False if self._engine == "openmm" else True,
             )
 
             self._static_restraints.append(this)
@@ -232,7 +234,7 @@ class HostGuestRestraints(object):
                 this = DAT_restraint()
                 this.auto_apr = self._auto_apr
                 this.continuous_apr = self._continuous_apr
-                this.amber_index = True
+                this.amber_index = False if self._engine == "openmm" else True
                 this.topology = self._structure
 
                 this.mask1 = conformational_restraint_atoms[0]
@@ -296,7 +298,7 @@ class HostGuestRestraints(object):
             this = DAT_restraint()
             this.auto_apr = self._auto_apr
             this.continuous_apr = self._continuous_apr
-            this.amber_index = True
+            this.amber_index = False if self._engine == "openmm" else True
             this.topology = self._structure
 
             # Distance
@@ -378,7 +380,7 @@ class HostGuestRestraints(object):
                 this = DAT_restraint()
                 this.auto_apr = self._auto_apr
                 this.continuous_apr = self._continuous_apr
-                this.amber_index = True
+                this.amber_index = False if self._engine == "openmm" else True
                 this.topology = self._structure
                 this.mask1 = guest_wall_restraint_atoms[0]
                 this.mask2 = guest_wall_restraint_atoms[1]
@@ -406,7 +408,7 @@ class HostGuestRestraints(object):
         this = DAT_restraint()
         this.auto_apr = self._auto_apr
         this.continuous_apr = self._continuous_apr
-        this.amber_index = True
+        this.amber_index = False if self._engine == "openmm" else True
         this.topology = self._structure
         this.mask1 = guest_wall_restraint_atoms[0]
         this.mask2 = guest_wall_restraint_atoms[1]
@@ -455,7 +457,7 @@ class HostGuestRestraints(object):
             this = DAT_restraint()
             this.auto_apr = self._auto_apr
             this.continuous_apr = self._continuous_apr
-            this.amber_index = True
+            this.amber_index = False if self._engine == "openmm" else True
             this.topology = self._structure
 
             this.mask1 = atoms[0]
@@ -539,7 +541,7 @@ class HostGuestRestraints(object):
             this = DAT_restraint()
             this.auto_apr = self._auto_apr
             this.continuous_apr = self._continuous_apr
-            this.amber_index = True
+            this.amber_index = False if self._engine == "openmm" else True
             this.topology = self._structure
 
             # Atoms
@@ -605,7 +607,7 @@ class HostGuestRestraints(object):
         ]
         self._init_protocol()
 
-    def _dump_apr_windows(self):
+    def dump_windows_list(self, output="windows.json"):
         """
         Extract APR windows and write to a json file
         """
@@ -618,7 +620,7 @@ class HostGuestRestraints(object):
             if window[0] == "r":
                 self._apr_list["release"]["windows"].append(window)
 
-        with open(os.path.join(self._output_prefix, "apr_windows.json"), "w") as f:
+        with open(os.path.join(self._output_prefix, output), "w") as f:
             dumped = json.dumps(self._apr_list, cls=NumpyEncoder)
             f.write(dumped)
 
@@ -635,17 +637,32 @@ class HostGuestRestraints(object):
             - self._guest_restraints[0].pull["target_initial"]
         )
 
-    def _create_folders(self, clean=True):
+    def create_folders(self, clean=True):
         """
         Create APR folders as defined by the fractions
 
         Parameters
         ----------
         clean : bool
-            delete current 'windows' folder?
+            delete current 'windows' folder
 
         """
+        # Generate list and create APR windows
+        if not self._window_list:
+            if self._conformational_restraints and self._guest_restraints or \
+                    self._conformational_restraints and not self._guest_restraints:
+                self._window_list = create_window_list(self._conformational_restraints)
+
+            elif self._guest_restraints and not self._conformational_restraints:
+                self._window_list = create_window_list(self._guest_restraints)
+
+            else:
+                raise Exception('No APR windows will be created because both guest '
+                                'and host conformational restraints are not defined')
+
+        # Path to folder
         windows_folder = os.path.join(self._output_prefix, "windows")
+
         # Remove folders
         if clean:
             if os.path.exists(windows_folder):
@@ -673,9 +690,9 @@ class HostGuestRestraints(object):
 
         self._dummy_atoms = extract_dummy_atoms(self._structure, serial=serial)
 
-    def dump_vacuum_structure(self, add_dummy_to_plumed=False):
+    def dump_structures(self, add_dummy_to_plumed=False):
         """
-        Method to copy vacuum structure to each folder ready for solvation with tleap. The
+        Method to copy structure to each folder ready for solvation with tleap. The
         structures for the pull phase will have the guest molecule translated according to
         the specified pull distances.
 
@@ -748,7 +765,7 @@ class HostGuestRestraints(object):
                     os.path.join(sub_folder, f"{self._base_name}.rst7"),
                 )
                 shutil.copy(
-                    inpcrd,
+                    inppdb,
                     os.path.join(sub_folder, f"{self._base_name}.pdb"),
                 )
 
@@ -822,12 +839,11 @@ class HostGuestRestraints(object):
             with open(os.path.join(sub_folder, output_xml), "w") as file:
                 file.write(system_xml)
 
-    def dump_restraint_files(
+    def dump_restraints_file(
         self,
         json_file="restraints.json",
         restr_type="amber",
         ref_from_structure=False,
-        clean=False,
     ):
         """
         Method to write pAPRika restraints to either Amber NMR-style or Plumed format
@@ -842,8 +858,6 @@ class HostGuestRestraints(object):
             restraint format - Amber NMR or Plumed
         ref_from_structure : bool
             take the reference position of dummy atoms from current structure
-        clean : bool
-            Delete the current folder?
 
         """
         # dump restraint file for later use in analysis
@@ -856,21 +870,6 @@ class HostGuestRestraints(object):
             restraint_list += self._guest_restraints.copy()
 
         save_restraints(restraint_list=restraint_list, filepath=os.path.join(self._output_prefix, json_file))
-
-        # Generate list and create APR windows
-        if self._conformational_restraints and self._guest_restraints or \
-                self._conformational_restraints and not self._guest_restraints:
-            self._window_list = create_window_list(self._conformational_restraints)
-
-        elif self._guest_restraints and not self._conformational_restraints:
-            self._window_list = create_window_list(self._guest_restraints)
-
-        else:
-            raise Exception('No APR windows will be created because both guest '
-                            'and host conformational restraints are not defined')
-
-        self._dump_apr_windows()
-        self._create_folders(clean)
 
         # Write restraints to file
         restraint_file = "disang.rest"
