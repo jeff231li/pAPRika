@@ -83,6 +83,33 @@ class Simulation(object):
         self._restraint_file = value
 
     @property
+    def colvar_input(self):
+        """os.PathLike: The file containing collective variable definition for AMBER."""
+        return self._colvar_input
+
+    @colvar_input.setter
+    def colvar_input(self, value):
+        self._colvar_input = value
+
+    @property
+    def colvar_freq(self):
+        """int: The output frequency for printing colvar values."""
+        return self._colvar_freq
+
+    @colvar_freq.setter
+    def colvar_freq(self, value):
+        self._colvar_freq = value
+
+    @property
+    def colvar_output(self):
+        """str: The output file for colvar values."""
+        return self._colvar_output
+
+    @colvar_output.setter
+    def colvar_output(self, value):
+        self._colvar_output = value
+
+    @property
     def converged(self) -> bool:
         """bool: Whether the simulation is converged.
 
@@ -228,6 +255,9 @@ class Simulation(object):
         self._window = None
         self._topology = "prmtop"
         self._restraint_file = "restraints.in"
+        self._colvar_input = "colvars.in"
+        self._colvar_ouptut = "pmd.txt"
+        self._colvar_freq = 50
         self.title = "PBC MD Simulation"
         self.converged = False
 
@@ -273,6 +303,7 @@ class Simulation(object):
         self._cntrl["restraintmask"] = None
         self._cntrl["nmropt"] = 1
         self._cntrl["pencut"] = -1
+        self._cntrl["infe"] = 0
 
         # Alchemical calculation specific
         self._cntrl["icfe"] = None
@@ -434,6 +465,12 @@ class Simulation(object):
                 if self.restraint_file is not None and self.restraint_file == 'disang.rest':
                     f.write("DISANG = {}\n".format(self.restraint_file))
                     f.write("LISTOUT = POUT\n\n")
+            if self.cntrl["infe"] == 1:
+                f.write("&pmd \n")
+                f.write("  cv_file = \'{}\',\n".format(self.colvar_input))
+                f.write("  output_file = \'{}\',\n".format(self.colvar_output))
+                f.write("  output_freq = {},\n".format(self.colvar_freq))
+                f.write("/\n")
             if self.group is not None:
                 f.write("{:s}".format(self.group))
 

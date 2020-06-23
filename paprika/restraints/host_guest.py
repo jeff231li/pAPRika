@@ -54,7 +54,8 @@ class HostGuestRestraints(object):
         anchor_atoms,
         structure,
         windows=None,
-        output_prefix='.',
+        output_path='.',
+        output_prefix='windows',
         engine='amber',
     ):
         self._guest_resname = guest_resname
@@ -63,6 +64,7 @@ class HostGuestRestraints(object):
         self._anchor_atoms = anchor_atoms
         self._windows = None
         self._structure = structure
+        self._output_path = output_path
         self._output_prefix = output_prefix
         self._engine = engine
         self._apr_list = {
@@ -80,6 +82,8 @@ class HostGuestRestraints(object):
         self._continuous_apr = None
         self._auto_apr = None
         self._protocol = None
+
+        self._cv_host_rmsd = None
 
         if windows is not None:
             self.set_APR_windows(a=windows[0], p=windows[1], r=windows[2])
@@ -344,6 +348,18 @@ class HostGuestRestraints(object):
             f"\t* There are {len(self._conformational_restraints)} conformational restraints"
         )
 
+    def host_rmsd(self, atom_types, target=0.0, krmsd=10.0):
+        self._cv_host_rmsd = {'cv_ni': 0, 'cv_nr': 0, 'cv_i': [], 'cv_r': [], 'target': target, 'k': krmsd}
+
+        for atom in self._structure.atoms:
+            if atom.residue.name == self._host_resname and atom.type in atom_types:
+                self._cv_host_rmsd['cv_i'].append(atom.idx + 1)
+                self._cv_host_rmsd['cv_r'].append([atom.xx, atom.xy, atom.xz])
+        self._cv_host_rmsd['cv_ni'] = len(self._cv_host_rmsd['cv_i'])+1
+        self._cv_host_rmsd['cv_nr'] = len(self._cv_host_rmsd['cv_r'])*3
+
+        print(f"\t* There are {len(self._cv_host_rmsd['cv_i'])} atoms for the host-RMSD colvar")
+
     def guest_wall(
         self, template, targets, distance_fc=50.0, angle_fc=500.0,
     ):
@@ -531,7 +547,7 @@ class HostGuestRestraints(object):
                 "initial": [self._apr_list["pull"]["fractions"][0], 180.0, 180.0],
                 "final": [self._apr_list["pull"]["fractions"][-1], 180.0, 180.0],
             }
-        else:
+        elif guest_targets is None:
             guest_targets = {
                 "initial": [6.0, 180.0, 180.0],
                 "final": [6.0, 180.0, 180.0],
@@ -549,7 +565,8 @@ class HostGuestRestraints(object):
             this.mask2 = atoms[1]
             if len(atoms) == 3:
                 this.mask3 = atoms[2]
-            elif len(atoms) == 4:
+            if len(atoms) == 4:
+                this.mask3 = atoms[2]
                 this.mask4 = atoms[3]
 
             # APR protocol
@@ -620,7 +637,7 @@ class HostGuestRestraints(object):
             if window[0] == "r":
                 self._apr_list["release"]["windows"].append(window)
 
-        with open(os.path.join(self._output_prefix, output), "w") as f:
+        with open(os.path.join(self._output_path, self._output_prefix, output), "w") as f:
             dumped = json.dumps(self._apr_list, cls=NumpyEncoder)
             f.write(dumped)
 
@@ -656,12 +673,17 @@ class HostGuestRestraints(object):
             elif self._guest_restraints and not self._conformational_restraints:
                 self._window_list = create_window_list(self._guest_restraints)
 
+            elif not self._guest_restraints and not self._conformational_restraints and self._protocol == 'r':
+                self._window_list = []
+                for i in range(len(self._apr_list["release"]["fractions"])):
+                    self._window_list.append(f'r{i:03d}')
+
             else:
                 raise Exception('No APR windows will be created because both guest '
                                 'and host conformational restraints are not defined')
 
         # Path to folder
-        windows_folder = os.path.join(self._output_prefix, "windows")
+        windows_folder = os.path.join(self._output_path, self._output_prefix)
 
         # Remove folders
         if clean:
@@ -704,7 +726,7 @@ class HostGuestRestraints(object):
         """
 
         for window in self._window_list:
-            sub_folder = os.path.join(self._output_prefix, "windows", window)
+            sub_folder = os.path.join(self._output_path, self._output_prefix, window)
 
             if window[0] == "a":
                 shutil.copy(
@@ -751,7 +773,7 @@ class HostGuestRestraints(object):
                     inppdb = self._structure.name.replace("prmtop", "pdb")
 
                 else:
-                    pull_window = os.path.join(self._output_prefix, "windows", self.get_last_pull_window())
+                    pull_window = os.path.join(self._output_path, self._output_prefix, self.get_last_pull_window())
                     prmtop = os.path.join(pull_window, f"{self._base_name}.prmtop")
                     inpcrd = os.path.join(pull_window, f"{self._base_name}.rst7")
                     inppdb = os.path.join(pull_window, f"{self._base_name}.pdb")
@@ -793,7 +815,7 @@ class HostGuestRestraints(object):
             nonbondedMethod = NoCutoff
 
         for window in self._window_list:
-            sub_folder = os.path.join(self._output_prefix, "windows", window)
+            sub_folder = os.path.join(self._output_path, self._output_prefix, window)
 
             prmtop = AmberPrmtopFile(os.path.join(sub_folder, f"{self._base_name}.prmtop"))
 
@@ -869,7 +891,7 @@ class HostGuestRestraints(object):
         if self._guest_restraints:
             restraint_list += self._guest_restraints.copy()
 
-        save_restraints(restraint_list=restraint_list, filepath=os.path.join(self._output_prefix, json_file))
+        save_restraints(restraint_list=restraint_list, filepath=os.path.join(self._output_path, self._output_prefix, json_file))
 
         # Write restraints to file
         restraint_file = "disang.rest"
@@ -879,7 +901,7 @@ class HostGuestRestraints(object):
             list_type = "dict"
 
         for window in self._window_list:
-            sub_folder = os.path.join(self._output_prefix, "windows", window)
+            sub_folder = os.path.join(self._output_path, self._output_prefix, window)
             with open(os.path.join(sub_folder, restraint_file), "w") as file:
                 if window[0] == "a":
                     restraints = parse_restraints(
@@ -922,3 +944,25 @@ class HostGuestRestraints(object):
                     if ref_from_structure:
                         self._fetch_dummy_atoms(serial=True)
                         write_dummy_to_plumed(file, self._dummy_atoms)
+
+            if self._cv_host_rmsd is not None:
+                kfactor = 1.0
+                if window[0] == 'a':
+                    kfactor *= self._apr_list["attach"]["fractions"][self._apr_list["attach"]["windows"].index(window)]
+                elif window[0] == 'r':
+                    kfactor *= self._apr_list["release"]["fractions"][self._apr_list["release"]["windows"].index(window)]
+
+                with open(os.path.join(sub_folder, 'colvars.in'), 'w') as file:
+                    file.writelines('&colvar\n')
+                    file.writelines('  cv_type = \'MULTI_RMSD\',\n')
+                    file.writelines('  cv_ni = {}, cv_nr = {},\n'.format(self._cv_host_rmsd['cv_ni'], self._cv_host_rmsd['cv_nr']))
+                    file.writelines('  cv_i = ')
+                    for index in self._cv_host_rmsd['cv_i']:
+                        file.writelines('{},'.format(index))
+                    file.writelines('0,\n')
+                    file.writelines('  cv_r = ')
+                    for pos in self._cv_host_rmsd['cv_r']:
+                        file.writelines('{},{},{},\n'.format(pos[0], pos[1], pos[2]))
+                    file.writelines('  anchor_position = 0.0,{},{},999.0,\n'.format(self._cv_host_rmsd['target'], self._cv_host_rmsd['target']))
+                    file.writelines('  anchor_strength = {},{},\n'.format(self._cv_host_rmsd['k']*kfactor, self._cv_host_rmsd['k']*kfactor))
+                    file.writelines('/\n')
