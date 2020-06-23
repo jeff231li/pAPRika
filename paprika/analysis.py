@@ -1068,7 +1068,7 @@ class fe_calc(object):
                                 max_val = right
                             self.results[phase][method]["largest_neighbor"][i] = max_val
 
-    def compute_ref_state_work(self, restraints):
+    def compute_ref_state_work(self, restraints, calc='apr'):
         """
         Compute the work to place a molecule at standard reference state conditions
         starting from a state defined by up to six restraints. These are Boresch-style restraints.
@@ -1097,12 +1097,15 @@ class fe_calc(object):
             if restraint is None:
                 fcs.append(None)
                 targs.append(None)
-            elif restraint.phase["release"]["force_constants"] is not None:
+            elif restraint.phase["release"]["force_constants"] is not None and calc is 'apr':
                 fcs.append(np.sort(restraint.phase["release"]["force_constants"])[-1])
                 targs.append(np.sort(restraint.phase["release"]["targets"])[-1])
-            elif restraint.phase["pull"]["force_constants"] is not None:
+            elif restraint.phase["pull"]["force_constants"] is not None and calc is 'apr':
                 fcs.append(np.sort(restraint.phase["pull"]["force_constants"])[-1])
                 targs.append(np.sort(restraint.phase["pull"]["targets"])[-1])
+            elif restraint.phase["attach"]["force_constants"] is not None and calc is 'ddm':
+                fcs.append(np.sort(restraint.phase["attach"]["force_constants"])[-1])
+                targs.append(np.sort(restraint.phase["attach"]["targets"])[-1])
             else:
                 raise ValueError(
                     "Restraints should have pull or release values initialized in order to compute_ref_state_work"
