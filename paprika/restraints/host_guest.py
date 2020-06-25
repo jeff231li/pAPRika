@@ -467,8 +467,8 @@ class HostGuestRestraints(object):
         self._wall_restraints = []
         self._symmetry_restraints = []
 
-        for atoms, target, force_constant in zip(
-            template["atoms"], template["target"], template["k"]
+        for atoms, target, force_constant, dat_type in zip(
+            template["atoms"], template["target"], template["k"], template["type"], 
         ):
             this = DAT_restraint()
             this.auto_apr = self._auto_apr
@@ -485,13 +485,13 @@ class HostGuestRestraints(object):
             this.custom_restraint_values["rk2"] = force_constant
 
             # Distance
-            if len(atoms) == 2:
+            if dat_type == "bond":
                 this.custom_restraint_values["rk3"] = force_constant
                 this.custom_restraint_values["r1"] = 0.0
                 this.custom_restraint_values["r2"] = 0.0
 
             # Angles
-            elif len(atoms) == 3:
+            elif dat_type == "angle":
                 this.mask3 = atoms[2]
                 this.custom_restraint_values["rk3"] = 0.0
 
@@ -500,12 +500,13 @@ class HostGuestRestraints(object):
 
             this.initialize()
 
-            if len(atoms) == 2:
+            if dat_type == "bond":
                 self._wall_restraints.append(this)
-            elif len(atoms) == 3:
+            elif dat_type == "angle":
                 self._symmetry_restraints.append(this)
 
         print(f"\t* There are {len(self._wall_restraints)} guest wall restraints")
+        print(f"\t* There are {len(self._symmetry_restraints)} guest symmetry restraints")
 
     def guest(
         self, guest_atoms=None, guest_targets=None, distance_fc=5.0, angle_fc=100.0,
@@ -806,8 +807,8 @@ class HostGuestRestraints(object):
     def dump_openmm_xml(self, nbMethod='PME', cutoff=9.0, output_xml="system.xml"):
         from paprika.setup import apply_openmm_restraints
         from simtk import unit
-        from simtk.openmm import CustomExternalForce, XmlSerializer
-        from simtk.openmm.app import AmberPrmtopFile, HBonds, NoCutoff, PME
+        from simtk.openmm import CustomExternalForce, CustomCVForce, RMSDForce, XmlSerializer
+        from simtk.openmm.app import AmberInpcrdFile, AmberPrmtopFile, HBonds, NoCutoff, PME
 
         if nbMethod == 'PME':
             nonbondedMethod = PME
@@ -816,6 +817,10 @@ class HostGuestRestraints(object):
 
         for window in self._window_list:
             sub_folder = os.path.join(self._output_path, self._output_prefix, window)
+            if window[0] == 'a':
+                phase = 'attach'
+            elif window[0] == 'r':
+                phase = 'release'
 
             prmtop = AmberPrmtopFile(os.path.join(sub_folder, f"{self._base_name}.prmtop"))
 
@@ -854,6 +859,20 @@ class HostGuestRestraints(object):
                 system = apply_openmm_restraints(system, restraint, window, flat_bottom=True, ForceGroup=13)
             for restraint in self._wall_restraints:
                 system = apply_openmm_restraints(system, restraint, window, flat_bottom=True, ForceGroup=14)
+
+            if self._cv_host_rmsd is not None:
+                inpcrd = AmberInpcrdFile(self._structure.name.replace("prmtop", "rst7"))
+                rmsd_cv = RMSDForce(inpcrd.getPositions(), self._cv_host_rmsd['cv_i'])
+                rmsd_cv.setForceGroup(16)
+                rmsd_restraint = CustomCVForce('k_rmsd * (RMSD-RMSD0)^2')
+                rmsd_restraint.addCollectiveVariable('RMSD', rmsd_cv)
+                rmsd_restraint.addGlobalParameter(
+                    'k_rmsd', 
+                    self._cv_host_rmsd['k']*self._apr_list[phase]['fractions'][self._apr_list[phase]['windows'].index(window)]*unit.kilocalories_per_mole/unit.angstroms**2
+                )
+                rmsd_restraint.addGlobalParameter('RMSD0', self._cv_host_rmsd['target']*unit.angstroms)
+                system.addForce(rmsd_restraint)
+                rmsd_restraint.setForceGroup(16)
 
             # Write XML file
             system_xml = XmlSerializer.serialize(system)
