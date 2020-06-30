@@ -159,7 +159,7 @@ def extract_guest_restraints(structure, guest_resname, restraints):
     return guest_restraints
 
 
-def parse_restraints(static=None, host_conf=None, guest=None, wall=None, list_type='tuple'):
+def parse_restraints(static=None, guest=None, host=None, wall=None, symmetry=None, list_type='tuple'):
     """
     A not so good looking function to parse restraints that is used when writing
     the restraints to file.
@@ -168,12 +168,14 @@ def parse_restraints(static=None, host_conf=None, guest=None, wall=None, list_ty
     ----------
     static : list
         List of host static DAT_restraint()
-    host_conf : list
-        List of host conformational DAT_restraint()
     guest : list
         List of guest DAT_restraint()
+    host : list
+        List of host conformational DAT_restraint()
     wall : list
         List of guest-wall static DAT_restraint()
+    symmetry : list
+        List of guest-symmetrystatic DAT_restraint()
     list_type : str
         Type of list to return (tuple or dict)
 
@@ -183,53 +185,17 @@ def parse_restraints(static=None, host_conf=None, guest=None, wall=None, list_ty
         The list of available restraints
 
     """
-    l_s = 0 if static is None else len(static)
-    l_h = 0 if host_conf is None else len(host_conf)
-    l_g = 0 if guest is None else len(guest)
-    l_w = 0 if wall is None else len(wall)
 
-    restraints_list = None
+    if list_type is 'tuple':
+        restraints_list = []
+    elif list_type is 'dict':
+        restraints_list = {}
 
-    if l_s != 0 and l_h != 0 and l_g != 0 and l_w != 0:
-        if list_type == 'tuple':
-            restraints_list = (static + guest + host_conf + wall)
-        elif list_type == 'dict':
-            restraints_list = {"static": static, "guest": guest, "host": host_conf, "wall": wall}
-
-    if l_s != 0 and l_h != 0 and l_g != 0 and l_w == 0:
-        if list_type == 'tuple':
-            restraints_list = (static + guest + host_conf)
-        elif list_type == 'dict':
-            restraints_list = {"static": static, "guest": guest, "host": host_conf}
-
-    if l_s != 0 and l_h == 0 and l_g != 0 and l_w != 0:
-        if list_type == 'tuple':
-            restraints_list = (static + guest + wall)
-        elif list_type == 'dict':
-            restraints_list = {"static": static, "guest": guest, "wall": wall}
-
-    if l_s != 0 and l_h != 0 and l_g == 0 and l_w == 0:
-        if list_type == 'tuple':
-            restraints_list = (static + host_conf)
-        elif list_type == 'dict':
-            restraints_list = {"static": static, "host": host_conf}
-
-    if l_s != 0 and l_h == 0 and l_g != 0 and l_w == 0:
-        if list_type == 'tuple':
-            restraints_list = (static + guest)
-        elif list_type == 'dict':
-            restraints_list = {"static": static, "guest": guest}
-
-    if l_s != 0 and l_h == 0 and l_g == 0 and l_w != 0:
-        if list_type == 'tuple':
-            restraints_list = (static + wall)
-        elif list_type == 'dict':
-            restraints_list = {"static": static, "wall": wall}
-
-    if l_s != 0 and l_h == 0 and l_g == 0 and l_w == 0:
-        if list_type == 'tuple':
-            restraints_list = static
-        elif list_type == 'dict':
-            restraints_list = {"static": static}
+    for restraint in ["static", "guest", "host", "wall", "symmetry"]:
+        if eval(restraint) is not None or len(eval(restraint)) != 0:
+            if list_type is 'tuple':
+                restraints_list += eval(restraint)
+            elif list_type is 'dict':
+                restraints_list[restraint] = eval(restraint)
 
     return restraints_list

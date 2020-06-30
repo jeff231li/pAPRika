@@ -810,7 +810,7 @@ def static_DAT_restraint(
     if len(restraint_mask_list) == 2:
         # Distance restraint
         if reference_trajectory.top.has_box():
-            target = pt.distance(reference_trajectory, mask_string, image=True)[0]
+            target = pt.distance(reference_trajectory, mask_string, image=False)[0]
             logger.debug("Calculating distance with 'image = True' ...")
         else:
             target = pt.distance(reference_trajectory, mask_string, image=False)[0]

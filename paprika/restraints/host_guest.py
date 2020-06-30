@@ -84,6 +84,7 @@ class HostGuestRestraints(object):
         self._protocol = None
 
         self._cv_host_rmsd = None
+        self._cv_guest_rmsd = None
 
         if windows is not None:
             self.set_APR_windows(a=windows[0], p=windows[1], r=windows[2])
@@ -348,15 +349,31 @@ class HostGuestRestraints(object):
             f"\t* There are {len(self._conformational_restraints)} conformational restraints"
         )
 
-    def host_rmsd(self, atom_types, target=0.0, krmsd=10.0):
-        self._cv_host_rmsd = {'cv_ni': 0, 'cv_nr': 0, 'cv_i': [], 'cv_r': [], 'target': target, 'k': krmsd}
+    def host_rmsd(self, atom_types, structure=None, target=0.0, krmsd=10.0, scale=True):
+        self._cv_host_rmsd = {'cv_ni': 0, 'cv_nr': 0, 'cv_i': [], 'cv_r': [], 'target': target, 'k': krmsd, 'scale': scale}
+        if structure is None:
+            structure = self._structure
 
-        for atom in self._structure.atoms:
+        for atom in structure.atoms:
             if atom.residue.name == self._host_resname and atom.type in atom_types:
                 self._cv_host_rmsd['cv_i'].append(atom.idx + 1)
                 self._cv_host_rmsd['cv_r'].append([atom.xx, atom.xy, atom.xz])
         self._cv_host_rmsd['cv_ni'] = len(self._cv_host_rmsd['cv_i'])+1
         self._cv_host_rmsd['cv_nr'] = len(self._cv_host_rmsd['cv_r'])*3
+
+        print(f"\t* There are {len(self._cv_host_rmsd['cv_i'])} atoms for the host-RMSD colvar")
+
+    def guest_rmsd(self, structure=None, target=0.0, krmsd=10.0, scale=True):
+        self._cv_guest_rmsd = {'cv_ni': 0, 'cv_nr': 0, 'cv_i': [], 'cv_r': [], 'target': target, 'k': krmsd, 'scale': scale}
+        if structure is None:
+            structure = self._structure
+
+        for atom in structure.atoms:
+            if atom.residue.name == self._guest_resname and atom.element != 1:
+                self._cv_guest_rmsd['cv_i'].append(atom.idx + 1)
+                self._cv_guest_rmsd['cv_r'].append([atom.xx, atom.xy, atom.xz])
+        self._cv_guest_rmsd['cv_ni'] = len(self._cv_guest_rmsd['cv_i'])+1
+        self._cv_guest_rmsd['cv_nr'] = len(self._cv_guest_rmsd['cv_r'])*3
 
         print(f"\t* There are {len(self._cv_host_rmsd['cv_i'])} atoms for the host-RMSD colvar")
 
@@ -874,6 +891,20 @@ class HostGuestRestraints(object):
                 system.addForce(rmsd_restraint)
                 rmsd_restraint.setForceGroup(16)
 
+            if self._cv_guest_rmsd is not None:
+                inpcrd = AmberInpcrdFile(self._structure.name.replace("prmtop", "rst7"))
+                rmsd_cv = RMSDForce(inpcrd.getPositions(), self._cv_guest_rmsd['cv_i'])
+                rmsd_cv.setForceGroup(17)
+                rmsd_restraint = CustomCVForce('k_rmsd * (RMSD-RMSD0)^2')
+                rmsd_restraint.addCollectiveVariable('RMSD', rmsd_cv)
+                rmsd_restraint.addGlobalParameter(
+                    'k_rmsd', 
+                    self._cv_guest_rmsd['k']*self._apr_list[phase]['fractions'][self._apr_list[phase]['windows'].index(window)]*unit.kilocalories_per_mole/unit.angstroms**2
+                )
+                rmsd_restraint.addGlobalParameter('RMSD0', self._cv_guest_rmsd['target']*unit.angstroms)
+                system.addForce(rmsd_restraint)
+                rmsd_restraint.setForceGroup(17)
+
             # Write XML file
             system_xml = XmlSerializer.serialize(system)
 
@@ -926,28 +957,29 @@ class HostGuestRestraints(object):
                     restraints = parse_restraints(
                         static=self._static_restraints,
                         guest=self._guest_restraints,
-                        host_conf=self._conformational_restraints,
+                        host=self._conformational_restraints,
                         wall=self._wall_restraints,
+                        symmetry=self._symmetry_restraints,
                         list_type=list_type,
                     )
                 if window[0] == "p":
                     restraints = parse_restraints(
                         static=self._static_restraints,
                         guest=self._guest_restraints,
-                        host_conf=self._conformational_restraints,
+                        host=self._conformational_restraints,
                         list_type=list_type,
                     )
                 if window[0] == "r" and self._protocol == "a-p-r":
                     restraints = parse_restraints(
                         static=self._static_restraints,
                         guest=self._guest_restraints,
-                        host_conf=self._conformational_restraints,
+                        host=self._conformational_restraints,
                         list_type=list_type,
                     )
                 if window[0] == "r" and self._protocol == "r":
                     restraints = parse_restraints(
                         static=self._static_restraints,
-                        host_conf=self._conformational_restraints,
+                        host=self._conformational_restraints,
                         list_type=list_type,
                     )
 
@@ -966,10 +998,11 @@ class HostGuestRestraints(object):
 
             if self._cv_host_rmsd is not None:
                 kfactor = 1.0
-                if window[0] == 'a':
-                    kfactor *= self._apr_list["attach"]["fractions"][self._apr_list["attach"]["windows"].index(window)]
-                elif window[0] == 'r':
-                    kfactor *= self._apr_list["release"]["fractions"][self._apr_list["release"]["windows"].index(window)]
+                if self._cv_host_rmsd['scale']:
+                    if window[0] == 'a':
+                        kfactor *= self._apr_list["attach"]["fractions"][self._apr_list["attach"]["windows"].index(window)]
+                    elif window[0] == 'r':
+                        kfactor *= self._apr_list["release"]["fractions"][self._apr_list["release"]["windows"].index(window)]
 
                 with open(os.path.join(sub_folder, 'colvars.in'), 'w') as file:
                     file.writelines('&colvar\n')
@@ -985,3 +1018,31 @@ class HostGuestRestraints(object):
                     file.writelines('  anchor_position = 0.0,{},{},999.0,\n'.format(self._cv_host_rmsd['target'], self._cv_host_rmsd['target']))
                     file.writelines('  anchor_strength = {},{},\n'.format(self._cv_host_rmsd['k']*kfactor, self._cv_host_rmsd['k']*kfactor))
                     file.writelines('/\n')
+
+            if self._cv_guest_rmsd is not None:
+                kfactor = 1.0
+                if self._cv_guest_rmsd['scale']:
+                    if window[0] == 'a':
+                        kfactor *= self._apr_list["attach"]["fractions"][self._apr_list["attach"]["windows"].index(window)]
+                    elif window[0] == 'r':
+                        kfactor *= self._apr_list["release"]["fractions"][self._apr_list["release"]["windows"].index(window)]
+
+                fio = 'w'
+                if os.path.exists(os.path.join(sub_folder, 'colvars.in')):
+                    fio = 'a'
+
+                with open(os.path.join(sub_folder, 'colvars.in'), fio) as file:
+                    file.writelines('&colvar\n')
+                    file.writelines('  cv_type = \'MULTI_RMSD\',\n')
+                    file.writelines('  cv_ni = {}, cv_nr = {},\n'.format(self._cv_guest_rmsd['cv_ni'], self._cv_guest_rmsd['cv_nr']))
+                    file.writelines('  cv_i = ')
+                    for index in self._cv_guest_rmsd['cv_i']:
+                        file.writelines('{},'.format(index))
+                    file.writelines('0,\n')
+                    file.writelines('  cv_r = ')
+                    for pos in self._cv_guest_rmsd['cv_r']:
+                        file.writelines('{},{},{},\n'.format(pos[0], pos[1], pos[2]))
+                    file.writelines('  anchor_position = 0.0,{},{},999.0,\n'.format(self._cv_guest_rmsd['target'], self._cv_guest_rmsd['target']))
+                    file.writelines('  anchor_strength = {},{},\n'.format(self._cv_guest_rmsd['k']*kfactor, self._cv_guest_rmsd['k']*kfactor))
+                    file.writelines('/\n')
+
