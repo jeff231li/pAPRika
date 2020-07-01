@@ -192,10 +192,11 @@ def parse_restraints(static=None, guest=None, host=None, wall=None, symmetry=Non
         restraints_list = {}
 
     for restraint in ["static", "guest", "host", "wall", "symmetry"]:
-        if eval(restraint) is not None or len(eval(restraint)) != 0:
-            if list_type is 'tuple':
-                restraints_list += eval(restraint)
-            elif list_type is 'dict':
-                restraints_list[restraint] = eval(restraint)
+        if eval(restraint) is not None: 
+            if len(eval(restraint)) != 0:
+                if list_type is 'tuple':
+                    restraints_list += eval(restraint)
+                elif list_type is 'dict':
+                    restraints_list[restraint] = eval(restraint)
 
     return restraints_list
