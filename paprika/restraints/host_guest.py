@@ -349,33 +349,53 @@ class HostGuestRestraints(object):
             f"\t* There are {len(self._conformational_restraints)} conformational restraints"
         )
 
-    def host_rmsd(self, atom_types, structure=None, target=0.0, krmsd=10.0, scale=True):
-        self._cv_host_rmsd = {'cv_ni': 0, 'cv_nr': 0, 'cv_i': [], 'cv_r': [], 'target': target, 'k': krmsd, 'scale': scale}
+    def host_rmsd(self, atom_types=None, structure=None, target=0.0, krmsd=10.0, scale=True):
+        self._cv_host_rmsd = {
+            'cv_ni': 0, 'cv_nr': 0, 'cv_i': [], 'cv_r': [], 
+            'target': target, 'k': krmsd, 'scale': scale
+        }
+
         if structure is None:
             structure = self._structure
 
         for atom in structure.atoms:
-            if atom.residue.name == self._host_resname and atom.type in atom_types:
-                self._cv_host_rmsd['cv_i'].append(atom.idx + 1)
-                self._cv_host_rmsd['cv_r'].append([atom.xx, atom.xy, atom.xz])
+            if atom_types is not None:
+                if atom.residue.name == self._host_resname and atom.type in atom_types:
+                    self._cv_host_rmsd['cv_i'].append(atom.idx + 1)
+                    self._cv_host_rmsd['cv_r'].append([atom.xx, atom.xy, atom.xz])
+            elif atom_types is None:
+                if atom.residue.name == self._host_resname and atom.element != 1:
+                    self._cv_host_rmsd['cv_i'].append(atom.idx + 1)
+                    self._cv_host_rmsd['cv_r'].append([atom.xx, atom.xy, atom.xz])
+
         self._cv_host_rmsd['cv_ni'] = len(self._cv_host_rmsd['cv_i'])+1
         self._cv_host_rmsd['cv_nr'] = len(self._cv_host_rmsd['cv_r'])*3
 
         print(f"\t* There are {len(self._cv_host_rmsd['cv_i'])} atoms for the host-RMSD colvar")
 
-    def guest_rmsd(self, structure=None, target=0.0, krmsd=10.0, scale=True):
-        self._cv_guest_rmsd = {'cv_ni': 0, 'cv_nr': 0, 'cv_i': [], 'cv_r': [], 'target': target, 'k': krmsd, 'scale': scale}
+    def guest_rmsd(self, atom_types=None, structure=None, target=0.0, krmsd=10.0, scale=True):
+        self._cv_guest_rmsd = {
+            'cv_ni': 0, 'cv_nr': 0, 'cv_i': [], 'cv_r': [], 
+            'target': target, 'k': krmsd, 'scale': scale
+        }
+
         if structure is None:
             structure = self._structure
 
         for atom in structure.atoms:
-            if atom.residue.name == self._guest_resname and atom.element != 1:
-                self._cv_guest_rmsd['cv_i'].append(atom.idx + 1)
-                self._cv_guest_rmsd['cv_r'].append([atom.xx, atom.xy, atom.xz])
+            if atom_types is not None:
+                if atom.residue.name == self._guest_resname and atom.type in atom_types:
+                    self._cv_guest_rmsd['cv_i'].append(atom.idx + 1)
+                    self._cv_guest_rmsd['cv_r'].append([atom.xx, atom.xy, atom.xz])
+            elif atom_types is None:
+                if atom.residue.name == self._guest_resname and atom.element != 1:
+                    self._cv_guest_rmsd['cv_i'].append(atom.idx + 1)
+                    self._cv_guest_rmsd['cv_r'].append([atom.xx, atom.xy, atom.xz])
+
         self._cv_guest_rmsd['cv_ni'] = len(self._cv_guest_rmsd['cv_i'])+1
         self._cv_guest_rmsd['cv_nr'] = len(self._cv_guest_rmsd['cv_r'])*3
 
-        print(f"\t* There are {len(self._cv_host_rmsd['cv_i'])} atoms for the host-RMSD colvar")
+        print(f"\t* There are {len(self._cv_host_rmsd['cv_i'])} atoms for the guest-RMSD colvar")
 
     def guest_wall(
         self, template, targets, distance_fc=50.0, angle_fc=500.0,
