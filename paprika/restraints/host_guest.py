@@ -395,7 +395,7 @@ class HostGuestRestraints(object):
         self._cv_guest_rmsd['cv_ni'] = len(self._cv_guest_rmsd['cv_i'])+1
         self._cv_guest_rmsd['cv_nr'] = len(self._cv_guest_rmsd['cv_r'])*3
 
-        print(f"\t* There are {len(self._cv_host_rmsd['cv_i'])} atoms for the guest-RMSD colvar")
+        print(f"\t* There are {len(self._cv_guest_rmsd['cv_i'])} atoms for the guest-RMSD colvar")
 
     def guest_wall(
         self, template, targets, distance_fc=50.0, angle_fc=500.0,
@@ -970,51 +970,59 @@ class HostGuestRestraints(object):
             restraint_file = "plumed.dat"
             list_type = "dict"
 
+        total_restraints = len(
+                self._static_restraints
+                + self._guest_restraints
+                + self._conformational_restraints
+                + self._wall_restraints
+                + self._symmetry_restraints)
+
         for window in self._window_list:
             sub_folder = os.path.join(self._output_path, self._output_prefix, window)
-            with open(os.path.join(sub_folder, restraint_file), "w") as file:
-                if window[0] == "a":
-                    restraints = parse_restraints(
-                        static=self._static_restraints,
-                        guest=self._guest_restraints,
-                        host=self._conformational_restraints,
-                        wall=self._wall_restraints,
-                        symmetry=self._symmetry_restraints,
-                        list_type=list_type,
-                    )
-                if window[0] == "p":
-                    restraints = parse_restraints(
-                        static=self._static_restraints,
-                        guest=self._guest_restraints,
-                        host=self._conformational_restraints,
-                        list_type=list_type,
-                    )
-                if window[0] == "r" and self._protocol == "a-p-r":
-                    restraints = parse_restraints(
-                        static=self._static_restraints,
-                        guest=self._guest_restraints,
-                        host=self._conformational_restraints,
-                        list_type=list_type,
-                    )
-                if window[0] == "r" and self._protocol == "r":
-                    restraints = parse_restraints(
-                        static=self._static_restraints,
-                        host=self._conformational_restraints,
-                        list_type=list_type,
-                    )
+            if total_restraints != 0:
+                with open(os.path.join(sub_folder, restraint_file), "w") as file:
+                    if window[0] == "a":
+                        restraints = parse_restraints(
+                            static=self._static_restraints,
+                            guest=self._guest_restraints,
+                            host=self._conformational_restraints,
+                            wall=self._wall_restraints,
+                            symmetry=self._symmetry_restraints,
+                            list_type=list_type,
+                        )
+                    if window[0] == "p":
+                        restraints = parse_restraints(
+                            static=self._static_restraints,
+                            guest=self._guest_restraints,
+                            host=self._conformational_restraints,
+                            list_type=list_type,
+                        )
+                    if window[0] == "r" and self._protocol == "a-p-r":
+                        restraints = parse_restraints(
+                            static=self._static_restraints,
+                            guest=self._guest_restraints,
+                            host=self._conformational_restraints,
+                            list_type=list_type,
+                        )
+                    if window[0] == "r" and self._protocol == "r":
+                        restraints = parse_restraints(
+                            static=self._static_restraints,
+                            host=self._conformational_restraints,
+                            list_type=list_type,
+                        )
 
-                if restr_type.lower() == "amber":
-                    for restraint in restraints:
-                        string = amber_restraint_line(restraint, window)
-                        if string is not None:
-                            file.write(string)
+                    if restr_type.lower() == "amber":
+                        for restraint in restraints:
+                            string = amber_restraint_line(restraint, window)
+                            if string is not None:
+                                file.write(string)
 
-                elif restr_type.lower() == "plumed":
-                    plumed_colvar_file(file, restraints, window, legacy_k=True)
+                    elif restr_type.lower() == "plumed":
+                        plumed_colvar_file(file, restraints, window, legacy_k=True)
 
-                    if ref_from_structure:
-                        self._fetch_dummy_atoms(serial=True)
-                        write_dummy_to_plumed(file, self._dummy_atoms)
+                        if ref_from_structure:
+                            self._fetch_dummy_atoms(serial=True)
+                            write_dummy_to_plumed(file, self._dummy_atoms)
 
             if self._cv_host_rmsd is not None:
                 kfactor = 1.0
