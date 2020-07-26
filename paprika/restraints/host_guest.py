@@ -675,7 +675,7 @@ class HostGuestRestraints(object):
             if window[0] == "r":
                 self._apr_list["release"]["windows"].append(window)
 
-        with open(os.path.join(self._output_path, self._output_prefix, output), "w") as f:
+        with open(os.path.join(self._output_path, output), "w") as f:
             dumped = json.dumps(self._apr_list, cls=NumpyEncoder)
             f.write(dumped)
 
