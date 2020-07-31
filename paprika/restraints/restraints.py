@@ -786,7 +786,7 @@ def static_DAT_restraint(
     rest.continuous_apr = continuous_apr
     rest.amber_index = amber_index
 
-    if isinstance(ref_structure, pmd.amber._amberparm.AmberParm):
+    if isinstance(ref_structure, pmd.amber._amberparm.AmberParm) or isinstance(ref_structure, pmd.structure.Structure):
         reference_trajectory = pt.load_parmed(ref_structure, traj=True)
         rest.topology = ref_structure
     elif isinstance(ref_structure, str):
